@@ -362,7 +362,7 @@ class Stream(ProxiedDictMixin, Base):
         self.fire_timestamp = fire_timestamp
         if state is None:
             state = StreamState.active
-        self.state = state
+        self.state = int(state)
         if state_serial_no is None:
             state_serial_no = 0
         self.state_serial_no = state_serial_no

@@ -24,6 +24,8 @@ class EventCondenser(condenser.CondenserBase):
         self.timestamp = None
 
     def add_trait(self, name, trait_type, value):
+        if isinstance(value, datetime.datetime):
+            value = self._fix_time(value)
         self.traits[name] = value
 
     def add_envelope_info(self, event_type, message_id, when):
@@ -34,9 +36,19 @@ class EventCondenser(condenser.CondenserBase):
     def get_event(self):
         event = self.traits.copy()
         event['message_id'] = self.message_id
-        event['timestamp'] = self.timestamp
+        event['timestamp'] = self._fix_time(self.timestamp)
         event['event_type'] = self.event_type
         return event
+
+    def _fix_time(self, dt):
+        """Stackdistiller converts all times to utc.
+        We store timestamps as utc datetime. However, the explicit
+        UTC timezone on incoming datetimes causes comparison issues
+        deep in sqlalchemy. We fix this by converting all datetimes
+        to naive utc timestamps"""
+        if dt.tzinfo is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
 
     def validate(self):
         if self.event_type is None:

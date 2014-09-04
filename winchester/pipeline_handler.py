@@ -80,7 +80,7 @@ class LoggingHandler(PipelineHandlerBase):
     def handle_events(self, events, env):
         emsg = ', '.join("%s: %s" % (event['event_type'], event['message_id'])
                         for event in events)
-        logger.info("Received %s events: \n%s" % (len(events)), emsg)
+        logger.info("Received %s events: \n%s" % (len(events), emsg))
         return events
 
     def commit(self):

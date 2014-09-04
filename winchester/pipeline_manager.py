@@ -217,6 +217,7 @@ class PipelineManager(object):
         except LockError:
             logger.debug("Stream %s locked. Moving on..." % stream.id)
             return False
+        logger.debug("Firing Stream %s." % stream.id)
         trigger_def = self.trigger_map.get(stream.name)
         if trigger_def is None:
             logger.error("Stream %s has unknown trigger definition %s" % (
@@ -246,6 +247,7 @@ class PipelineManager(object):
         except LockError:
             logger.debug("Stream %s locked. Moving on..." % stream.id)
             return False
+        logger.debug("Expiring Stream %s." % stream.id)
         trigger_def = self.trigger_map.get(stream.name)
         if trigger_def is None:
             logger.error("Stream %s has unknown trigger definition %s" % (
