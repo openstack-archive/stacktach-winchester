@@ -31,6 +31,8 @@ setup(
     scripts=[],
     long_description=read('README.md'),
     install_requires=install_reqs,
-
+    entry_points = {
+        'console_scripts': ['pipeline_worker=winchester.worker:main'],
+    },
     zip_safe=False
 )
