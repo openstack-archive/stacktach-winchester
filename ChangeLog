@@ -1,0 +1,34 @@
+commit a6f84d16036e143b1b605c50b90055a623e3235b
+Author: Monsyne Dragon <mdragon@rackspace.com>
+Date:   Thu Sep 4 20:43:41 2014 +0000
+
+    Fixed a few bugs, added more logging.
+    
+    Fixed timestamp bug, and streamstate issue missed in unittests.
+    Added more logging for pipeline manager.
+
+commit c2aa498beb14cf0a61066fe1e7df833a16db5733
+Author: Monsyne Dragon <mdragon@rackspace.com>
+Date:   Thu Sep 4 18:05:19 2014 +0000
+
+    Move yagi handler into winchester codebase.
+
+commit a8f373e4bf14762ad09a20f8ad9ea543e11c5be7
+Author: Monsyne Dragon <mdragon@rackspace.com>
+Date:   Thu Sep 4 01:49:19 2014 +0000
+
+    Added full stream processing, pipeline workers, etc.
+    
+    Full trigger logic now works.
+    Added pipeline workers, and test handler.
+    Added example configs
+    Lots of unittests.
+
+commit aa8fb55e879e782268c663f81e73384673d56847
+Author: Monsyne Dragon <mdragon@rackspace.com>
+Date:   Thu Jun 26 01:55:26 2014 +0000
+
+    Initial commit of DB schema.
+    
+    Initial commit of the event schema for the database.
+    This includes models and alembic migration.

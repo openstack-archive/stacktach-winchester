@@ -9,15 +9,18 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name)
+#fileConfig(config.config_file_name)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+from winchester.config import ConfigManager
 from winchester.models import Base
 target_metadata = Base.metadata
 
+winchester_config = ConfigManager.load_config_file(
+    config.get_main_option("winchester_config"))
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -35,7 +38,7 @@ def run_migrations_offline():
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = winchester_config['database']['url']
     context.configure(url=url)
 
     with context.begin_transaction():
@@ -49,8 +52,8 @@ def run_migrations_online():
 
     """
     engine = engine_from_config(
-                config.get_section(config.config_ini_section),
-                prefix='sqlalchemy.',
+                winchester_config['database'],
+                prefix='',
                 poolclass=pool.NullPool)
 
     connection = engine.connect()
