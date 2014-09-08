@@ -39,6 +39,8 @@ class StreamState(IntEnum):
     error = 4
     expire_error = 5
     completed = 6
+    retry_fire = 7
+    retry_expire = 8
 
 
 class DBException(Exception):

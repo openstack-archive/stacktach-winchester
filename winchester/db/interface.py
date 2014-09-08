@@ -185,7 +185,12 @@ class DBInterface(object):
     @sessioned
     def get_ready_streams(self, batch_size, current_time, expire=False, session=None):
         q = session.query(models.Stream)
-        q = q.filter(models.Stream.state == int(models.StreamState.active))
+        if expire:
+            states = (int(models.StreamState.active), int(models.StreamState.retry_expire))
+        else:
+            states = (int(models.StreamState.active), int(models.StreamState.retry_fire))
+
+        q = q.filter(models.Stream.state.in_(states))
         if expire:
             q = q.filter(models.Stream.expire_timestamp < current_time)
         else:
@@ -205,3 +210,10 @@ class DBInterface(object):
         if ct != 1:
             raise LockError("Optimistic Lock failed!")
         return self.get_stream_by_id(stream_id)
+
+    def reset_stream(self, stream):
+        if stream.state == models.StreamState.error:
+            return self.set_stream_state(stream, models.StreamState.retry_fire)
+        if stream.state == models.StreamState.expire_error:
+            return self.set_stream_state(stream, models.StreamState.retry_expire)
+        return stream

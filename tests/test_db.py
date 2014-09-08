@@ -71,6 +71,34 @@ TEST_DATA = [
          expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
          state=int(models.StreamState.active),
          state_serial_no=0),
+        dict(id=5, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         name='reset_test_trigger',
+         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
+         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
+         state=int(models.StreamState.error),
+         state_serial_no=0),
+        dict(id=6, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         name='reset_test_trigger',
+         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
+         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
+         state=int(models.StreamState.expire_error),
+         state_serial_no=0),
+        dict(id=7, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         name='reset_test_trigger',
+         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
+         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
+         state=int(models.StreamState.retry_fire),
+         state_serial_no=0),
+        dict(id=8, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
+         name='reset_test_trigger',
+         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
+         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
+         state=int(models.StreamState.retry_expire),
+         state_serial_no=0),
         ]},
     {'streamevent': [
         dict(stream_id=1, event_id=3),
@@ -351,10 +379,11 @@ class TestDB(unittest.TestCase):
     def test_get_ready_streams_fire(self):
         current_time = datetime.datetime(2014,8,12,0,0,0,42)
         streams = self.db.get_ready_streams(10, current_time)
-        self.assertEqual(len(streams), 2)
+        self.assertEqual(len(streams), 3)
         stream_ids = [stream.id for stream in streams]
         self.assertIn(3, stream_ids)
         self.assertIn(4, stream_ids)
+        self.assertIn(7, stream_ids)
 
         current_time = datetime.datetime(2014,8,10,12,0,0,42)
         streams = self.db.get_ready_streams(10, current_time)
@@ -369,12 +398,13 @@ class TestDB(unittest.TestCase):
     def test_get_ready_streams_expire(self):
         current_time = datetime.datetime(2014,8,17,0,0,0,42)
         streams = self.db.get_ready_streams(10, current_time, expire=True)
-        self.assertEqual(len(streams), 4)
+        self.assertEqual(len(streams), 5)
         stream_ids = [stream.id for stream in streams]
         self.assertIn(1, stream_ids)
         self.assertIn(2, stream_ids)
         self.assertIn(3, stream_ids)
         self.assertIn(4, stream_ids)
+        self.assertIn(8, stream_ids)
 
         current_time = datetime.datetime(2014,8,10,12,0,0,42)
         streams = self.db.get_ready_streams(10, current_time, expire=True)
@@ -399,3 +429,13 @@ class TestDB(unittest.TestCase):
         self.db.set_stream_state(stream, models.StreamState.firing)
         with self.assertRaises(db.LockError):
             self.db.set_stream_state(stream, models.StreamState.firing)
+
+    def test_reset_stream_fire(self):
+        stream = self.db.get_stream_by_id(5)
+        stream = self.db.reset_stream(stream)
+        self.assertEqual(stream.state, models.StreamState.retry_fire)
+
+    def test_reset_stream_expire(self):
+        stream = self.db.get_stream_by_id(6)
+        stream = self.db.reset_stream(stream)
+        self.assertEqual(stream.state, models.StreamState.retry_expire)
