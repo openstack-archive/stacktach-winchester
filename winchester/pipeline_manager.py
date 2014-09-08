@@ -9,6 +9,8 @@ from winchester.db import DBInterface, DuplicateError, LockError
 from winchester.config import ConfigManager, ConfigSection, ConfigItem
 from winchester.definition import TriggerDefinition
 from winchester.models import StreamState
+from winchester.trigger_manager import TriggerManager
+
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +150,9 @@ class PipelineManager(object):
             self.trigger_definitions = [TriggerDefinition(conf) for conf in defs]
         self.trigger_map = dict((tdef.name, tdef) for tdef in self.trigger_definitions)
 
+        self.trigger_manager = TriggerManager(self.config, db=self.db,
+                                              trigger_defs=self.trigger_definitions)
+
         self.pipeline_worker_batch_size = config['pipeline_worker_batch_size']
         self.pipeline_worker_delay = config['pipeline_worker_delay']
         self.statistics_period = config['statistics_period']
@@ -187,7 +192,8 @@ class PipelineManager(object):
         self.last_status = self.current_time()
 
     def add_new_events(self, events):
-        pass
+        for event in events:
+            self.trigger_manager.add_event(event)
 
     def _run_pipeline(self, stream, trigger_def, pipeline_name, pipeline_config):
         events = self.db.get_stream_events(stream)

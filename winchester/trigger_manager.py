@@ -142,9 +142,13 @@ class TriggerManager(object):
 
     def save_event(self, event):
         traits = event.copy()
-        message_id = traits.pop('message_id')
-        timestamp = traits.pop('timestamp')
-        event_type = traits.pop('event_type')
+        try:
+            message_id = traits.pop('message_id')
+            timestamp = traits.pop('timestamp')
+            event_type = traits.pop('event_type')
+        except KeyError as e:
+            logger.warning("Received invalid event: %s" % e)
+            return False
         try:
             self.db.create_event(message_id, event_type,
                                  timestamp, traits)
@@ -160,9 +164,7 @@ class TriggerManager(object):
         self.received += 1
         if self.distiller.to_event(notification_body, cond):
             if cond.validate():
-                event = cond.get_event()
-                if self.save_event(event):
-                    return event
+                return cond.get_event()
             else:
                 logger.warning("Received invalid event")
         else:
@@ -196,14 +198,15 @@ class TriggerManager(object):
                       stream.id, timestamp))
 
     def add_event(self, event):
-        for trigger_def in self.trigger_definitions:
-            matched_criteria = trigger_def.match(event)
-            if matched_criteria:
-                dist_traits = trigger_def.get_distinguishing_traits(event, matched_criteria)
-                stream = self._add_or_create_stream(trigger_def, event, dist_traits)
-                if stream.fire_timestamp is None:
-                    if trigger_def.should_fire(self.db.get_stream_events(stream)):
-                        self._ready_to_fire(stream, trigger_def)
+        if self.save_event(event):
+            for trigger_def in self.trigger_definitions:
+                matched_criteria = trigger_def.match(event)
+                if matched_criteria:
+                    dist_traits = trigger_def.get_distinguishing_traits(event, matched_criteria)
+                    stream = self._add_or_create_stream(trigger_def, event, dist_traits)
+                    if stream.fire_timestamp is None:
+                        if trigger_def.should_fire(self.db.get_stream_events(stream)):
+                            self._ready_to_fire(stream, trigger_def)
         if (self.current_time() - self.last_status).seconds > self.statistics_period:
             self._log_statistics()
 

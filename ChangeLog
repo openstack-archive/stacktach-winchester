@@ -1,3 +1,15 @@
+commit 0c619c133d3c248d62a2c5f6441d4fae0bf7042a
+Author: Monsyne Dragon <mdragon@rackspace.com>
+Date:   Sun Sep 7 04:07:20 2014 +0000
+
+    Add database admin command.
+    
+    Add admin command for db schema upgrade/downgrade/etc.
+    Move alembic migrations so above can find them when installed
+        as a package.
+    Fix up packaging to use setup.cfg and pbr.
+    Flesh out README.
+
 commit a6f84d16036e143b1b605c50b90055a623e3235b
 Author: Monsyne Dragon <mdragon@rackspace.com>
 Date:   Thu Sep 4 20:43:41 2014 +0000

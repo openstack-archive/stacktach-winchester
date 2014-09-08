@@ -60,7 +60,6 @@ class TestTriggerManager(unittest.TestCase):
         cond.clear.assert_called_once_with()
         cond.validate.assert_called_once_with()
         tm.distiller.to_event.assert_called_once_with('test notification here', cond)
-        tm.save_event.assert_called_once_with(test_event)
         self.assertEquals(res, test_event)
 
     @mock.patch('winchester.trigger_manager.EventCondenser', autospec=True)
@@ -187,13 +186,15 @@ class TestTriggerManager(unittest.TestCase):
         m_def = tm.trigger_definitions[2]
         tm.trigger_definitions[0].match.return_value = None
         tm.trigger_definitions[1].match.return_value = None
-        event = "test event"
+        event = mock.MagicMock(name='event', spec=dict)
+        tm.save_event = mock.MagicMock()
         tm._add_or_create_stream = mock.MagicMock()
         tm._add_or_create_stream.return_value.fire_timestamp = None
         tm._ready_to_fire = mock.MagicMock()
         m_def.should_fire.return_value = True
 
         tm.add_event(event)
+        tm.save_event.assert_called_once_with(event)
         for td in tm.trigger_definitions:
             td.match.assert_called_once_with(event)
         m_def.get_distinguishing_traits.assert_called_once_with(event, m_def.match.return_value)
@@ -211,13 +212,15 @@ class TestTriggerManager(unittest.TestCase):
         m_def = tm.trigger_definitions[2]
         tm.trigger_definitions[0].match.return_value = None
         tm.trigger_definitions[1].match.return_value = None
-        event = "test event"
+        event = mock.MagicMock(name='event', spec=dict)
+        tm.save_event = mock.MagicMock()
         tm._add_or_create_stream = mock.MagicMock()
         tm._add_or_create_stream.return_value.fire_timestamp = "Fire!"
         tm._ready_to_fire = mock.MagicMock()
         m_def.should_fire.return_value = True
 
         tm.add_event(event)
+        tm.save_event.assert_called_once_with(event)
         for td in tm.trigger_definitions:
             td.match.assert_called_once_with(event)
         m_def.get_distinguishing_traits.assert_called_once_with(event, m_def.match.return_value)
@@ -235,12 +238,14 @@ class TestTriggerManager(unittest.TestCase):
         tm.trigger_definitions[0].match.return_value = None
         tm.trigger_definitions[1].match.return_value = None
         tm.trigger_definitions[2].match.return_value = None
-        event = "test event"
+        event = mock.MagicMock(name='event', spec=dict)
+        tm.save_event = mock.MagicMock()
         tm._add_or_create_stream = mock.MagicMock()
         tm._add_or_create_stream.return_value.fire_timestamp = "Fire!"
         tm._ready_to_fire = mock.MagicMock()
 
         tm.add_event(event)
+        tm.save_event.assert_called_once_with(event)
         for td in tm.trigger_definitions:
             td.match.assert_called_once_with(event)
         for td in tm.trigger_definitions:
