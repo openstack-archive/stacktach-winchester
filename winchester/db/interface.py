@@ -4,6 +4,8 @@ import sqlalchemy
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import MultipleResultsFound
 
 from winchester import models
 from winchester.config import ConfigManager, ConfigSection, ConfigItem
@@ -20,6 +22,14 @@ class DuplicateError(models.DBException):
 
 
 class LockError(models.DBException):
+    pass
+
+
+class NoSuchEventError(models.DBException):
+    pass
+
+
+class NoSuchStreamError(models.DBException):
     pass
 
 
@@ -108,14 +118,20 @@ class DBInterface(object):
 
     @sessioned
     def get_event_by_message_id(self, message_id, session=None):
-        e = session.query(models.Event).\
-            filter(models.Event.message_id == message_id).one()
+        try:
+            e = session.query(models.Event).\
+                filter(models.Event.message_id == message_id).one()
+        except NoResultFound:
+            raise NoSuchEventError("No event found with message_id %s!" % message_id)
         return e.as_dict
 
     @sessioned
     def get_stream_by_id(self, stream_id, session=None):
-        s = session.query(models.Stream).\
-            filter(models.Stream.id == stream_id).one()
+        try:
+            s = session.query(models.Stream).\
+                filter(models.Stream.id == stream_id).one()
+        except NoResultFound:
+            raise NoSuchStreamError("No stream found with id %s!" % stream_id)
         return s
 
     @sessioned
@@ -217,3 +233,10 @@ class DBInterface(object):
         if stream.state == models.StreamState.expire_error:
             return self.set_stream_state(stream, models.StreamState.retry_expire)
         return stream
+
+    @sessioned
+    def purge_stream(self, stream, session=None):
+        if stream not in session:
+            session.add(stream)
+        session.delete(stream)
+

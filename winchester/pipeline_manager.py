@@ -112,6 +112,8 @@ class PipelineManager(object):
                     pipeline_config=ConfigItem(required=True,
                                        help="Name of pipeline config file "
                                             "defining the handlers for each pipeline."),
+                    purge_completed_streams=ConfigItem(help="Delete successfully proccessed "
+                                                       "streams when finished?", default=True),
                    )
 
     def __init__(self, config, db=None, pipeline_handlers=None, pipeline_config=None, trigger_defs=None):
@@ -156,6 +158,7 @@ class PipelineManager(object):
         self.pipeline_worker_batch_size = config['pipeline_worker_batch_size']
         self.pipeline_worker_delay = config['pipeline_worker_delay']
         self.statistics_period = config['statistics_period']
+        self.purge_completed_streams = config['purge_completed_streams']
         self.streams_fired = 0
         self.streams_expired = 0
         self.streams_loaded = 0
@@ -209,13 +212,28 @@ class PipelineManager(object):
         return True
 
     def _complete_stream(self, stream):
-        self.db.set_stream_state(stream, StreamState.completed)
+        if self.purge_completed_streams:
+            self.db.purge_stream(stream)
+        else:
+            try:
+                self.db.set_stream_state(stream, StreamState.completed)
+            except LockError:
+                logger.error("Stream %s locked while trying to set 'complete' state! "
+                             "This should not happen." % stream.id)
 
     def _error_stream(self, stream):
-        self.db.set_stream_state(stream, StreamState.error)
+        try:
+            self.db.set_stream_state(stream, StreamState.error)
+        except LockError:
+            logger.error("Stream %s locked while trying to set 'error' state! "
+                         "This should not happen." % stream.id)
 
     def _expire_error_stream(self, stream):
-        self.db.set_stream_state(stream, StreamState.expire_error)
+        try:
+            self.db.set_stream_state(stream, StreamState.expire_error)
+        except LockError:
+            logger.error("Stream %s locked while trying to set 'expire_error' state! "
+                         "This should not happen." % stream.id)
 
     def fire_stream(self, stream):
         try:

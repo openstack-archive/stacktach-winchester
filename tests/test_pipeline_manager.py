@@ -201,12 +201,22 @@ class TestPipelineManager(unittest.TestCase):
         super(TestPipelineManager, self).setUp()
 
     @mock.patch.object(pipeline_manager.ConfigManager, 'wrap')
-    def test_complete_stream(self, mock_config_wrap):
+    def test_complete_stream_nopurge(self, mock_config_wrap):
         pm = pipeline_manager.PipelineManager('test')
         pm.db = mock.MagicMock(spec=pm.db)
+        pm.purge_completed_streams = False
         stream = "test stream"
         pm._complete_stream(stream)
         pm.db.set_stream_state.assert_called_once_with(stream, StreamState.completed)
+
+    @mock.patch.object(pipeline_manager.ConfigManager, 'wrap')
+    def test_complete_stream_purge(self, mock_config_wrap):
+        pm = pipeline_manager.PipelineManager('test')
+        pm.db = mock.MagicMock(spec=pm.db)
+        pm.purge_completed_streams = True
+        stream = "test stream"
+        pm._complete_stream(stream)
+        pm.db.purge_stream.assert_called_once_with(stream)
 
     @mock.patch.object(pipeline_manager.ConfigManager, 'wrap')
     def test_error_stream(self, mock_config_wrap):

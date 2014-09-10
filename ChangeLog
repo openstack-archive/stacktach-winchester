@@ -1,3 +1,9 @@
+commit 2d47fa6f6e0de0a54975ff92fc87785a052d4371
+Author: Monsyne Dragon <mdragon@rackspace.com>
+Date:   Mon Sep 8 23:02:52 2014 +0000
+
+    Add reset stream method.
+
 commit ca0d09f7bc017ef9e372ae29a0c19bf20b68aca5
 Author: Monsyne Dragon <mdragon@rackspace.com>
 Date:   Mon Sep 8 19:57:24 2014 +0000

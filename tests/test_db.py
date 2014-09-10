@@ -439,3 +439,11 @@ class TestDB(unittest.TestCase):
         stream = self.db.get_stream_by_id(6)
         stream = self.db.reset_stream(stream)
         self.assertEqual(stream.state, models.StreamState.retry_expire)
+
+    def test_purge_stream(self):
+        stream = self.db.get_stream_by_id(1)
+        self.db.purge_stream(stream)
+        with self.assertRaises(db.NoSuchStreamError):
+            self.db.get_stream_by_id(1)
+
+

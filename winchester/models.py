@@ -342,6 +342,7 @@ class Stream(ProxiedDictMixin, Base):
     state_serial_no = Column(Integer, default=0, nullable=False)
 
     distinguished_by = relationship("DistinguishingTrait",
+                    cascade="save-update, merge, delete, delete-orphan",
                     collection_class=attribute_mapped_collection('name'))
     _proxied = association_proxy("distinguished_by", "value",
                     creator=lambda name, value: DistinguishingTrait(name=name, value=value))
