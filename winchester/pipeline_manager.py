@@ -91,30 +91,23 @@ class PipelineManager(object):
 
     @classmethod
     def config_description(cls):
-        return dict(config_path=ConfigItem(help="Path(s) to find additional config files",
-                                           multiple=True, default='.'),
+        configs = TriggerManager.config_description()
+        configs.update(dict(
                     pipeline_handlers=ConfigItem(required=True,
                                                  help="dictionary of pipeline handlers to load "
                                                        "Classes specified with simport syntax. "
                                                        "simport docs for more info"),
-                    statistics_period=ConfigItem(help="Emit stats on event counts, etc every "
-                                                      "this many seconds", default=10),
                     pipeline_worker_batch_size=ConfigItem(help="Number of streams for pipeline "
                                                           "worker(s) to load at a time", default=1000),
                     pipeline_worker_delay=ConfigItem(help="Number of seconds for pipeline worker to sleep "
                                                           "when it finds no streams to process", default=10),
-                    database=ConfigSection(help="Database connection info.",
-                                config_description=DBInterface.config_description()),
-                    trigger_definitions=ConfigItem(required=True,
-                                       help="Name of trigger definitions file "
-                                       "defining trigger conditions and what events to "
-                                       "process for each stream"),
                     pipeline_config=ConfigItem(required=True,
                                        help="Name of pipeline config file "
                                             "defining the handlers for each pipeline."),
                     purge_completed_streams=ConfigItem(help="Delete successfully proccessed "
                                                        "streams when finished?", default=True),
-                   )
+                   ))
+        return configs
 
     def __init__(self, config, db=None, pipeline_handlers=None, pipeline_config=None, trigger_defs=None):
         logger.debug("PipelineManager: Using config: %s" % str(config))
