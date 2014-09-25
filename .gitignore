@@ -1,5 +1,8 @@
 *.py[cod]
 
+AUTHORS
+Changelog
+
 # C extensions
 *.so
 

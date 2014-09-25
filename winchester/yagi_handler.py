@@ -28,3 +28,5 @@ class WinchesterHandler(BaseHandler):
         for notification in self.iterate_payloads(messages, env):
             self.trigger_manager.add_notification(notification)
 
+    def on_idle(self, num_messages, queue_name):
+        self.trigger_manager._log_statistics()
