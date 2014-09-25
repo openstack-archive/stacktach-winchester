@@ -24,7 +24,8 @@ class Criterion(object):
     def get_from_expression(cls, expression, trait_name):
         if isinstance(expression, collections.Mapping):
             if len(expression) != 1:
-                raise DefinitionError("Only exactly one type of match is allowed per criterion expression")
+                raise DefinitionError("Only exactly one type of match is "
+                                      "allowed per criterion expression")
             ctype = expression.keys()[0]
             expr = expression[ctype]
             if ctype == 'int':
@@ -45,16 +46,17 @@ class Criterion(object):
         self.op = '='
         self.value = expr
 
-    def match(self, event):
+    def match(self, event, debug_group):
         if self.trait_name not in event:
-            return False
+            return debug_group.mismatch("not %s" % self.trait_name)
         value = event[self.trait_name]
         if self.op == '=':
-            return value == self.value
+            return debug_group.check(value == self.value, "== failed")
         elif self.op == '>':
-            return value > self.value
+            return debug_group.check(value > self.value, "> failed")
         elif self.op == '<':
-            return value < self.value
+            return debug_group.check(value < self.value, "< failed")
+        return debug_group.mismatch("Criterion match() fall-thru")
 
 
 class NumericCriterion(Criterion):
@@ -95,16 +97,16 @@ class TimeCriterion(Criterion):
         self.trait_name = trait_name
         self.time_expr = timex.parse(expression)
 
-    def match(self, event):
+    def match(self, event, debug_group):
         if self.trait_name not in event:
-            return False
+            return debug_group.mismatch("Time: not '%s'" % self.trait_name)
         value = event[self.trait_name]
         try:
             timerange = self.time_expr(**filter_event_timestamps(event))
         except timex.TimexExpressionError:
             # the event doesn't contain a trait referenced in the expression.
-            return False
-        return value in timerange
+            return debug_group.mismatch("Time: no referenced trait")
+        return debug_group.check(value in timerange, "Not in timerange")
 
 
 class Criteria(object):
@@ -150,30 +152,31 @@ class Criteria(object):
         return (self.included_type(event_type)
                 and not self.excluded_type(event_type))
 
-    def match(self, event):
+    def match(self, event, debug_group):
         if not self.match_type(event['event_type']):
-            return False
+            return debug_group.mismatch("Wrong event type")
         if self.timestamp:
             try:
                 t = self.timestamp(**filter_event_timestamps(event))
             except timex.TimexExpressionError:
                 # the event doesn't contain a trait referenced in the expression.
-                return False
+                return debug_group.mismatch("No timestamp trait")
             if event['timestamp'] not in t:
-                return False
+                return debug_group.mismatch("Not time yet.")
         if not self.traits:
-            return True
-        return all(criterion.match(event) for
-                   criterion in self.traits.values())
+            return debug_group.match()
+        return all(criterion.match(event, debug_group) for
+                       criterion in self.traits.values())
 
 
 class TriggerDefinition(object):
 
-    def __init__(self, config):
+    def __init__(self, config, debug_manager):
         if 'name' not in config:
             raise DefinitionError("Required field in trigger definition not "
                                   "specified 'name'")
         self.name = config['name']
+        self.debug_level = int(config.get('debug_level', 0))
         self.distinguished_by = config.get('distinguished_by', [])
         for dt in self.distinguished_by:
             if isinstance(dt, collections.Mapping):
@@ -202,19 +205,30 @@ class TriggerDefinition(object):
         self.load_criteria = []
         if 'load_criteria' in config:
             self.load_criteria = [Criteria(c) for c in config['load_criteria']]
+        if debug_manager:
+            self.set_debugger(debug_manager)
+
+    def set_debugger(self, debug_manager):
+        self.debugger = debug_manager.get_debugger(self)
 
     def match(self, event):
         # all distinguishing traits must exist to match.
+        group = self.debugger.get_group("Match")
         for dt in self.distinguished_by:
             if isinstance(dt, collections.Mapping):
                 trait_name = dt.keys()[0]
             else:
                 trait_name = dt
             if trait_name not in event:
+                group.mismatch("not '%s'" % trait_name)
                 return None
+
         for criteria in self.match_criteria:
-            if criteria.match(event):
+            if criteria.match(event, group):
+                group.match()
                 return criteria
+
+        group.mismatch("No matching criteria")
         return None
 
     def get_distinguishing_traits(self, event, matching_criteria):
@@ -237,14 +251,14 @@ class TriggerDefinition(object):
         return timestamp + datetime.timedelta(seconds=self.fire_delay)
 
     def should_fire(self, events):
+        group = self.debugger.get_group("Fire")
         for criteria in self.fire_criteria:
             matches = 0
             for event in events:
-                if criteria.match(event):
+                if criteria.match(event, group):
                     matches += 1
                     if matches >= criteria.number:
                         break
             if matches < criteria.number:
-                return False
-        return True
-
+                return group.mismatch("Not enough matching criteria")
+        return group.match()

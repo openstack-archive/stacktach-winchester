@@ -59,31 +59,37 @@ class Pipeline(object):
                 raise PipelineExecutionError("Error loading pipeline", e)
             self.handlers.append(handler)
 
-    def handle_events(self, events):
+    def handle_events(self, events, debugger):
         event_ids = set(e['message_id'] for e in events)
         try:
             for handler in self.handlers:
                 events = handler.handle_events(events, self.env)
+            debugger.bump_counter("Pre-commit successful")
         except Exception as e:
             logger.exception("Error processing pipeline %s" % self.name)
-            self.rollback()
+            debugger.bump_counter("Pipeline error")
+            self.rollback(debugger)
             raise PipelineExecutionError("Error in pipeline", e)
         new_events = [e for e in events if e['message_id'] not in event_ids]
-        self.commit()
+        self.commit(debugger)
         return new_events
 
-    def commit(self):
+    def commit(self, debugger):
         for handler in self.handlers:
             try:
                 handler.commit()
+                debugger.bump_counter("Commit successful")
             except:
+                debugger.bump_counter("Commit error")
                 logger.exception("Commit error on handler in pipeline %s" % self.name)
 
-    def rollback(self):
+    def rollback(self, debugger):
         for handler in self.handlers:
             try:
                 handler.rollback()
+                debugger.bump_counter("Rollback successful")
             except:
+                debugger.bump_counter("Rollback error")
                 logger.exception("Rollback error on handler in pipeline %s" % self.name)
 
 
@@ -94,22 +100,30 @@ class PipelineManager(object):
         configs = TriggerManager.config_description()
         configs.update(dict(
                     pipeline_handlers=ConfigItem(required=True,
-                                                 help="dictionary of pipeline handlers to load "
-                                                       "Classes specified with simport syntax. "
-                                                       "simport docs for more info"),
-                    pipeline_worker_batch_size=ConfigItem(help="Number of streams for pipeline "
-                                                          "worker(s) to load at a time", default=1000),
-                    pipeline_worker_delay=ConfigItem(help="Number of seconds for pipeline worker to sleep "
-                                                          "when it finds no streams to process", default=10),
+                                 help="dictionary of pipeline handlers to load "
+                                       "Classes specified with simport syntax. "
+                                       "simport docs for more info"),
+                    pipeline_worker_batch_size=ConfigItem(
+                                 help="Number of streams for pipeline "
+                                      "worker(s) to load at a time",
+                                      default=1000),
+                    pipeline_worker_delay=ConfigItem(
+                                 help="Number of seconds for pipeline worker "
+                                      "to sleep when it finds no streams to "
+                                      "process", default=10),
                     pipeline_config=ConfigItem(required=True,
                                        help="Name of pipeline config file "
-                                            "defining the handlers for each pipeline."),
-                    purge_completed_streams=ConfigItem(help="Delete successfully proccessed "
-                                                       "streams when finished?", default=True),
+                                            "defining the handlers for each "
+                                            "pipeline."),
+                    purge_completed_streams=ConfigItem(
+                                       help="Delete successfully proccessed "
+                                            "streams when finished?",
+                                            default=True),
                    ))
         return configs
 
-    def __init__(self, config, db=None, pipeline_handlers=None, pipeline_config=None, trigger_defs=None):
+    def __init__(self, config, db=None, pipeline_handlers=None,
+                 pipeline_config=None, trigger_defs=None):
         logger.debug("PipelineManager: Using config: %s" % str(config))
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
@@ -142,7 +156,7 @@ class PipelineManager(object):
         else:
             defs = config.load_file(config['trigger_definitions'])
             logger.debug("Loaded trigger definitions %s" % str(defs))
-            self.trigger_definitions = [TriggerDefinition(conf) for conf in defs]
+            self.trigger_definitions = [TriggerDefinition(conf, None) for conf in defs]
         self.trigger_map = dict((tdef.name, tdef) for tdef in self.trigger_definitions)
 
         self.trigger_manager = TriggerManager(self.config, db=self.db,
@@ -187,15 +201,19 @@ class PipelineManager(object):
         self.streams_loaded = 0
         self.last_status = self.current_time()
 
+        self.trigger_manager.debug_manager.dump_debuggers()
+
     def add_new_events(self, events):
         for event in events:
             self.trigger_manager.add_event(event)
 
-    def _run_pipeline(self, stream, trigger_def, pipeline_name, pipeline_config):
+    def _run_pipeline(self, stream, trigger_def, pipeline_name,
+                      pipeline_config):
         events = self.db.get_stream_events(stream)
+        debugger = trigger_def.debugger
         try:
             pipeline = Pipeline(pipeline_name, pipeline_config, self.pipeline_handlers)
-            new_events = pipeline.handle_events(events)
+            new_events = pipeline.handle_events(events, debugger)
         except PipelineExecutionError:
             logger.error("Exception in pipeline %s handling stream %s" % (
                           pipeline_name, stream.id))
@@ -228,15 +246,22 @@ class PipelineManager(object):
             logger.error("Stream %s locked while trying to set 'expire_error' state! "
                          "This should not happen." % stream.id)
 
+    def safe_get_debugger(self, trigger_def):
+        return trigger_def.debugger if trigger_def is not None else \
+            self.trigger_manager.debug_manager.get_debugger(None)
+
     def fire_stream(self, stream):
+        trigger_def = self.trigger_map.get(stream.name)
+        debugger = self.safe_get_debugger(trigger_def)
         try:
             stream = self.db.set_stream_state(stream, StreamState.firing)
         except LockError:
             logger.debug("Stream %s locked. Moving on..." % stream.id)
+            debugger.bump_counter("Locked")
             return False
         logger.debug("Firing Stream %s." % stream.id)
-        trigger_def = self.trigger_map.get(stream.name)
         if trigger_def is None:
+            debugger.bump_counter("Unknown trigger def '%s'" % stream.name)
             logger.error("Stream %s has unknown trigger definition %s" % (
                          stream.id, stream.name))
             self._error_stream(stream)
@@ -245,28 +270,36 @@ class PipelineManager(object):
         if pipeline is not None:
             pipe_config = self.pipeline_config.get(pipeline)
             if pipe_config is None:
-                logger.error("Trigger %s for stream %s has unknown pipeline %s" % (
-                            stream.name, stream.id, pipeline))
+                debugger.bump_counter("Unknown pipeline '%s'" % pipeline)
+                logger.error("Trigger %s for stream %s has unknown "
+                             "pipeline %s" % (stream.name, stream.id,
+                                              pipeline))
                 self._error_stream(stream)
-            if not self._run_pipeline(stream, trigger_def, pipeline, pipe_config):
+            if not self._run_pipeline(stream, trigger_def, pipeline,
+                                      pipe_config):
                 self._error_stream(stream)
                 return False
         else:
             logger.debug("No fire pipeline for stream %s. Nothing to do." % (
                          stream.id))
+            debugger.bump_counter("No fire pipeline for '%s'" % stream.name)
         self._complete_stream(stream)
+        debugger.bump_counter("Streams fired")
         self.streams_fired +=1
         return True
 
     def expire_stream(self, stream):
+        trigger_def = self.trigger_map.get(stream.name)
+        debugger = self.safe_get_debugger(trigger_def)
         try:
             stream = self.db.set_stream_state(stream, StreamState.expiring)
         except LockError:
+            debugger.bump_counter("Locked")
             logger.debug("Stream %s locked. Moving on..." % stream.id)
             return False
         logger.debug("Expiring Stream %s." % stream.id)
-        trigger_def = self.trigger_map.get(stream.name)
         if trigger_def is None:
+            debugger.bump_counter("Unknown trigger def '%s'" % stream.name)
             logger.error("Stream %s has unknown trigger definition %s" % (
                          stream.id, stream.name))
             self._expire_error_stream(stream)
@@ -275,16 +308,20 @@ class PipelineManager(object):
         if pipeline is not None:
             pipe_config = self.pipeline_config.get(pipeline)
             if pipe_config is None:
+                debugger.bump_counter("Unknown pipeline '%s'" % pipeline)
                 logger.error("Trigger %s for stream %s has unknown pipeline %s" % (
                             stream.name, stream.id, pipeline))
                 self._expire_error_stream(stream)
-            if not self._run_pipeline(stream, trigger_def, pipeline, pipe_config):
+            if not self._run_pipeline(stream, trigger_def, pipeline,
+                                      pipe_config):
                 self._expire_error_stream(stream)
                 return False
         else:
             logger.debug("No expire pipeline for stream %s. Nothing to do." % (
                          stream.id))
+            debugger.bump_counter("No expire pipeline for '%s'" % stream.name)
         self._complete_stream(stream)
+        debugger.bump_counter("Streams expired")
         self.streams_expired +=1
         return True
 
