@@ -27,4 +27,3 @@ class WinchesterHandler(BaseHandler):
     def handle_messages(self, messages, env):
         for notification in self.iterate_payloads(messages, env):
             self.trigger_manager.add_notification(notification)
-

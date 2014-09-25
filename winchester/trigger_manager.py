@@ -3,8 +3,9 @@ import logging
 from stackdistiller import distiller, condenser
 import simport
 
-from winchester.db import DBInterface, DuplicateError
 from winchester.config import ConfigManager, ConfigSection, ConfigItem
+from winchester import debugging
+from winchester.db import DBInterface, DuplicateError
 from winchester.definition import TriggerDefinition
 
 
@@ -66,32 +67,37 @@ class TriggerManager(object):
 
     @classmethod
     def config_description(cls):
-        return dict(config_path=ConfigItem(help="Path(s) to find additional config files",
-                                           multiple=True, default='.'),
+        return dict(config_path=ConfigItem(
+                            help="Path(s) to find additional config files",
+                                 multiple=True, default='.'),
                     distiller_config=ConfigItem(required=True,
                                        help="Name of distiller config file "
                                        "describing what to extract from the "
                                        "notifications"),
-                    distiller_trait_plugins=ConfigItem(help="dictionary of trait plugins to load "
-                                                       "for stackdistiller. Classes specified with "
-                                                       "simport syntax. See stackdistiller and "
-                                                       "simport docs for more info", default=dict()),
-                    catch_all_notifications=ConfigItem(help="Store basic info for all notifications,"
-                                                       " even if not listed in distiller config",
-                                                       default=False),
-                    statistics_period=ConfigItem(help="Emit stats on event counts, etc every "
-                                                 "this many seconds", default=10),
+                    distiller_trait_plugins=ConfigItem(
+                        help="dictionary of trait plugins to load "
+                             "for stackdistiller. Classes specified with "
+                             "simport syntax. See stackdistiller and "
+                             "simport docs for more info", default=dict()),
+                    catch_all_notifications=ConfigItem(
+                        help="Store basic info for all notifications,"
+                             " even if not listed in distiller config",
+                             default=False),
+                    statistics_period=ConfigItem(
+                        help="Emit stats on event counts, etc every "
+                             "this many seconds", default=10),
                     database=ConfigSection(help="Database connection info.",
-                                config_description=DBInterface.config_description()),
+                            config_description=DBInterface.config_description()),
                     trigger_definitions=ConfigItem(required=True,
-                                       help="Name of trigger definitions file "
-                                       "defining trigger conditions and what events to "
-                                       "process for each stream"),
-                   )
+                               help="Name of trigger definitions file "
+                               "defining trigger conditions and what events to "
+                               "process for each stream"),
+               )
 
     def __init__(self, config, db=None, stackdistiller=None, trigger_defs=None):
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
+        self.debug_manager = debugging.DebugManager()
         config.check_config()
         config.add_config_path(*config['config_path'])
 
@@ -110,9 +116,13 @@ class TriggerManager(object):
                                                  catchall=config['catch_all_notifications'])
         if trigger_defs is not None:
             self.trigger_definitions = trigger_defs
+            for t in self.trigger_definitions:
+                t.set_debugger(self.debug_manager)
         else:
             defs = config.load_file(config['trigger_definitions'])
-            self.trigger_definitions = [TriggerDefinition(conf) for conf in defs]
+            self.trigger_definitions = [TriggerDefinition(conf,
+                                        self.debug_manager)
+                                            for conf in defs]
         self.statistics_period = config['statistics_period']
         self.saved_events = 0
         self.received = 0
@@ -180,9 +190,12 @@ class TriggerManager(object):
         self.saved_events = 0
         self.last_status = self.current_time()
 
+        self.debug_manager.dump_debuggers()
+
     def _add_or_create_stream(self, trigger_def, event, dist_traits):
         stream = self.db.get_active_stream(trigger_def.name, dist_traits, self.current_time())
         if stream is None:
+            trigger_def.debugger.bump_counter("New stream")
             stream = self.db.create_stream(trigger_def.name, event, dist_traits,
                                            trigger_def.expiration)
             logger.debug("Created New stream %s for %s: distinguished by %s" % (
@@ -194,6 +207,7 @@ class TriggerManager(object):
     def _ready_to_fire(self, stream, trigger_def):
         timestamp = trigger_def.get_fire_timestamp(self.current_time())
         self.db.stream_ready_to_fire(stream, timestamp)
+        trigger_def.debugger.bump_counter("Ready to fire")
         logger.debug("Stream %s ready to fire at %s" % (
                       stream.id, timestamp))
 
@@ -202,16 +216,20 @@ class TriggerManager(object):
             for trigger_def in self.trigger_definitions:
                 matched_criteria = trigger_def.match(event)
                 if matched_criteria:
-                    dist_traits = trigger_def.get_distinguishing_traits(event, matched_criteria)
-                    stream = self._add_or_create_stream(trigger_def, event, dist_traits)
+                    dist_traits = trigger_def.get_distinguishing_traits(
+                                                    event, matched_criteria)
+                    stream = self._add_or_create_stream(trigger_def, event,
+                                                        dist_traits)
+                    trigger_def.debugger.bump_counter("Added events")
                     if stream.fire_timestamp is None:
-                        if trigger_def.should_fire(self.db.get_stream_events(stream)):
+                        if trigger_def.should_fire(self.db.get_stream_events(
+                                                   stream)):
                             self._ready_to_fire(stream, trigger_def)
-        if (self.current_time() - self.last_status).seconds > self.statistics_period:
+        if ((self.current_time() - self.last_status).seconds >
+                                                    self.statistics_period):
             self._log_statistics()
 
     def add_notification(self, notification_body):
         event = self.convert_notification(notification_body)
         if event:
             self.add_event(event)
-
