@@ -5,14 +5,17 @@ import mock
 import datetime
 import timex
 
-from winchester import trigger_manager
-from winchester import definition
 from winchester import db as winch_db
+from winchester import debugging
+from winchester import definition
+from winchester import trigger_manager
+
 
 class TestTriggerManager(unittest.TestCase):
 
     def setUp(self):
         super(TestTriggerManager, self).setUp()
+        self.fake_debugger = debugging.NoOpDebugger()
 
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
     def test_save_event(self, mock_config_wrap):
@@ -25,7 +28,8 @@ class TestTriggerManager(unittest.TestCase):
                      other_test_trait=42)
         self.assertTrue(tm.save_event(event))
         tm.db.create_event.assert_called_once_with('1234-test-5678', 'test.thing',
-            datetime.datetime(2014,8,1,10,9,8,77777), dict(test_trait='foobar', other_test_trait=42))
+            datetime.datetime(2014,8,1,10,9,8,77777),
+            dict(test_trait='foobar', other_test_trait=42))
 
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
     def test_save_event_dup(self, mock_config_wrap):
@@ -39,7 +43,8 @@ class TestTriggerManager(unittest.TestCase):
                      other_test_trait=42)
         self.assertFalse(tm.save_event(event))
         tm.db.create_event.assert_called_once_with('1234-test-5678', 'test.thing',
-            datetime.datetime(2014,8,1,10,9,8,77777), dict(test_trait='foobar', other_test_trait=42))
+            datetime.datetime(2014,8,1,10,9,8,77777),
+            dict(test_trait='foobar', other_test_trait=42))
 
     @mock.patch('winchester.trigger_manager.EventCondenser', autospec=True)
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
@@ -118,12 +123,14 @@ class TestTriggerManager(unittest.TestCase):
         dist_traits = 'some traits'
         event = "eventful!"
 
-        ret = tm._add_or_create_stream(trigger_def, event, dist_traits)
-        tm.db.get_active_stream.assert_called_once_with(trigger_def.name, dist_traits,
-                                                        tm.current_time.return_value)
+        ret = tm._add_or_create_stream(trigger_def, event, dist_traits,
+                                       self.fake_debugger)
+        tm.db.get_active_stream.assert_called_once_with(trigger_def.name,
+                                    dist_traits, tm.current_time.return_value)
         self.assertFalse(tm.db.create_stream.called)
-        tm.db.add_event_stream.assert_called_once_with(tm.db.get_active_stream.return_value,
-                                                         event, trigger_def.expiration)
+        tm.db.add_event_stream.assert_called_once_with(
+                                        tm.db.get_active_stream.return_value,
+                                        event, trigger_def.expiration)
         self.assertEqual(ret, tm.db.get_active_stream.return_value)
 
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
@@ -136,7 +143,8 @@ class TestTriggerManager(unittest.TestCase):
         dist_traits = 'some traits'
         event = "eventful!"
 
-        ret = tm._add_or_create_stream(trigger_def, event, dist_traits)
+        ret = tm._add_or_create_stream(trigger_def, event, dist_traits,
+                                       self.fake_debugger)
         tm.db.get_active_stream.assert_called_once_with(trigger_def.name, dist_traits,
                                                         tm.current_time.return_value)
         tm.db.create_stream.assert_called_once_with(trigger_def.name, event, dist_traits,
@@ -181,6 +189,8 @@ class TestTriggerManager(unittest.TestCase):
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
     def test_add_event(self, mock_config_wrap):
         tm = trigger_manager.TriggerManager('test')
+        tm.debugger = mock.MagicMock(name='debugger')
+        tm.debugger.get_debugger.return_value = self.fake_debugger
         tm.db = mock.MagicMock(spec=tm.db)
         tm.trigger_definitions = [mock.MagicMock() for n in range(3)]
         m_def = tm.trigger_definitions[2]
@@ -196,17 +206,24 @@ class TestTriggerManager(unittest.TestCase):
         tm.add_event(event)
         tm.save_event.assert_called_once_with(event)
         for td in tm.trigger_definitions:
-            td.match.assert_called_once_with(event)
-        m_def.get_distinguishing_traits.assert_called_once_with(event, m_def.match.return_value)
+            td.match.assert_called_once_with(event, self.fake_debugger)
+        m_def.get_distinguishing_traits.assert_called_once_with(event,
+                                                    m_def.match.return_value)
         tm._add_or_create_stream.assert_called_once_with(m_def, event,
-            m_def.get_distinguishing_traits.return_value)
-        tm.db.get_stream_events.assert_called_once_with(tm._add_or_create_stream.return_value)
-        m_def.should_fire.assert_called_once_with(tm.db.get_stream_events.return_value)
-        tm._ready_to_fire.assert_called_once_with(tm._add_or_create_stream.return_value, m_def)
+            m_def.get_distinguishing_traits.return_value, self.fake_debugger)
+        tm.db.get_stream_events.assert_called_once_with(
+                                        tm._add_or_create_stream.return_value)
+        m_def.should_fire.assert_called_once_with(
+                                        tm.db.get_stream_events.return_value,
+                                        self.fake_debugger)
+        tm._ready_to_fire.assert_called_once_with(
+                                tm._add_or_create_stream.return_value, m_def)
 
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
     def test_add_event_on_ready_stream(self, mock_config_wrap):
         tm = trigger_manager.TriggerManager('test')
+        tm.debugger = mock.MagicMock(name='debugger')
+        tm.debugger.get_debugger.return_value = self.fake_debugger
         tm.db = mock.MagicMock(spec=tm.db)
         tm.trigger_definitions = [mock.MagicMock() for n in range(3)]
         m_def = tm.trigger_definitions[2]
@@ -222,10 +239,11 @@ class TestTriggerManager(unittest.TestCase):
         tm.add_event(event)
         tm.save_event.assert_called_once_with(event)
         for td in tm.trigger_definitions:
-            td.match.assert_called_once_with(event)
-        m_def.get_distinguishing_traits.assert_called_once_with(event, m_def.match.return_value)
+            td.match.assert_called_once_with(event, self.fake_debugger)
+        m_def.get_distinguishing_traits.assert_called_once_with(event,
+                                                    m_def.match.return_value)
         tm._add_or_create_stream.assert_called_once_with(m_def, event,
-            m_def.get_distinguishing_traits.return_value)
+            m_def.get_distinguishing_traits.return_value, self.fake_debugger)
         self.assertFalse(tm.db.get_stream_events.called)
         self.assertFalse(m_def.should_fire.called)
         self.assertFalse(tm._ready_to_fire.called)
@@ -233,6 +251,8 @@ class TestTriggerManager(unittest.TestCase):
     @mock.patch.object(trigger_manager.ConfigManager, 'wrap')
     def test_add_event_no_match(self, mock_config_wrap):
         tm = trigger_manager.TriggerManager('test')
+        tm.debugger = mock.MagicMock(name='debugger')
+        tm.debugger.get_debugger.return_value = self.fake_debugger
         tm.db = mock.MagicMock(spec=tm.db)
         tm.trigger_definitions = [mock.MagicMock() for n in range(3)]
         tm.trigger_definitions[0].match.return_value = None
@@ -247,7 +267,7 @@ class TestTriggerManager(unittest.TestCase):
         tm.add_event(event)
         tm.save_event.assert_called_once_with(event)
         for td in tm.trigger_definitions:
-            td.match.assert_called_once_with(event)
+            td.match.assert_called_once_with(event, self.fake_debugger)
         for td in tm.trigger_definitions:
             self.assertFalse(td.get_distinguishing_traits.called)
             self.assertFalse(td.should_fire.called)
