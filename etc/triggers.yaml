@@ -1,5 +1,6 @@
 ---
 - name: test_trigger
+  debug_level: 1
   distinguished_by:
   - instance_id
   - timestamp: "day"
