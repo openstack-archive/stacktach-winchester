@@ -1,0 +1,8 @@
+Verified+2: Jenkins
+Code-Review+2: Monsyne Dragon <mdragon@rackspace.com>
+Workflow+1: Monsyne Dragon <mdragon@rackspace.com>
+Submitted-by: Jenkins
+Submitted-at: Thu, 02 Oct 2014 21:17:15 +0000
+Reviewed-on: https://review.openstack.org/125092
+Project: stackforge/stacktach-winchester
+Branch: refs/heads/master
