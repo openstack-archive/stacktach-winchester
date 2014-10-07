@@ -15,6 +15,8 @@ class TestPipeline(unittest.TestCase):
     def setUp(self):
         super(TestPipeline, self).setUp()
         self.debugger = debugging.NoOpDebugger()
+        self.fake_stream = mock.MagicMock(name="fake_stream")
+        self.fake_stream.id = "stream-1234"
 
     def test_check_handler_config(self):
 
@@ -82,7 +84,7 @@ class TestPipeline(unittest.TestCase):
         p.commit = mock.MagicMock(name='commit')
         p.rollback = mock.MagicMock(name='rollback')
 
-        ret = p.handle_events(test_events, self.debugger)
+        ret = p.handle_events(test_events, self.fake_stream, self.debugger)
         handler_class1.return_value.handle_events.assert_called_once_with(test_events, p.env)
         events1 = handler_class1.return_value.handle_events.return_value
         handler_class2.return_value.handle_events.assert_called_once_with(events1, p.env)
@@ -116,7 +118,7 @@ class TestPipeline(unittest.TestCase):
         p.rollback = mock.MagicMock(name='rollback')
 
         with self.assertRaises(pipeline_manager.PipelineExecutionError):
-            p.handle_events(test_events, self.debugger)
+            p.handle_events(test_events, self.fake_stream, self.debugger)
         p.rollback.assert_called_once_with(self.debugger)
         self.assertFalse(p.commit.called)
 
@@ -261,7 +263,7 @@ class TestPipelineManager(unittest.TestCase):
 
         pipeline = mock_pipeline.return_value
         pipeline.handle_events.assert_called_once_with(
-            pm.db.get_stream_events.return_value, self.debugger)
+            pm.db.get_stream_events.return_value, stream, self.debugger)
         pm.add_new_events.assert_called_once_with(
             mock_pipeline.return_value.handle_events.return_value)
         self.assertTrue(ret)
@@ -291,7 +293,7 @@ class TestPipelineManager(unittest.TestCase):
                                               pm.pipeline_handlers)
 
         pipeline.handle_events.assert_called_once_with(
-            pm.db.get_stream_events.return_value, self.debugger)
+            pm.db.get_stream_events.return_value, stream, self.debugger)
         self.assertFalse(pm.add_new_events.called)
         self.assertFalse(ret)
 

@@ -6,3 +6,5 @@ MySQL-python
 alembic>=0.4.1
 enum34>=1.0
 SQLAlchemy>=0.9.6
+python-dateutil
+requests
