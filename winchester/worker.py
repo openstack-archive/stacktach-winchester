@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 from winchester.config import ConfigManager
 from winchester.pipeline_manager import PipelineManager
+from winchester import time_sync
 
 
 def main():
@@ -27,7 +28,8 @@ def main():
             level = conf['log_level']
             level = getattr(logging, level.upper())
             logging.getLogger('winchester').setLevel(level)
-    pipe = PipelineManager(conf)
+    timesync = time_sync.TimeSync(conf)
+    pipe = PipelineManager(conf, time_sync=timesync)
     if args.daemon:
         print "Backgrounding for daemon mode."
         with daemon.DaemonContext():

@@ -7,7 +7,7 @@ from winchester.config import ConfigManager, ConfigSection, ConfigItem
 from winchester import debugging
 from winchester.db import DBInterface, DuplicateError
 from winchester.definition import TriggerDefinition
-
+from winchester import time_sync as ts
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,10 @@ class TriggerManager(object):
                              "for stackdistiller. Classes specified with "
                              "simport syntax. See stackdistiller and "
                              "simport docs for more info", default=dict()),
+                    time_sync_endpoint=ConfigItem(
+                        help="URL of time sync service for use with"
+                             " replying old events.",
+                             default=None),
                     catch_all_notifications=ConfigItem(
                         help="Store basic info for all notifications,"
                              " even if not listed in distiller config",
@@ -94,12 +98,16 @@ class TriggerManager(object):
                                "process for each stream"),
                )
 
-    def __init__(self, config, db=None, stackdistiller=None, trigger_defs=None):
+    def __init__(self, config, db=None, stackdistiller=None, trigger_defs=None,
+                 time_sync=None):
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
         self.debug_manager = debugging.DebugManager()
         config.check_config()
         config.add_config_path(*config['config_path'])
+        if time_sync is None:
+            time_sync = ts.TimeSync()
+        self.time_sync = time_sync
 
         if db is not None:
             self.db = db
@@ -147,7 +155,7 @@ class TriggerManager(object):
 
     def current_time(self):
         # here so it's easily overridden.
-        return datetime.datetime.utcnow()
+        return self.time_sync.current_time()
 
     def save_event(self, event):
         traits = event.copy()
