@@ -1,4 +1,3 @@
-import datetime
 import time
 import logging
 import random
@@ -9,6 +8,7 @@ from winchester.db import DBInterface, DuplicateError, LockError
 from winchester.config import ConfigManager, ConfigSection, ConfigItem
 from winchester.definition import TriggerDefinition
 from winchester.models import StreamState
+from winchester import time_sync as ts
 from winchester.trigger_manager import TriggerManager
 
 
@@ -59,7 +59,8 @@ class Pipeline(object):
                 raise PipelineExecutionError("Error loading pipeline", e)
             self.handlers.append(handler)
 
-    def handle_events(self, events, debugger):
+    def handle_events(self, events, stream, debugger):
+        self.env['stream_id'] = stream.id
         event_ids = set(e['message_id'] for e in events)
         try:
             for handler in self.handlers:
@@ -123,12 +124,16 @@ class PipelineManager(object):
         return configs
 
     def __init__(self, config, db=None, pipeline_handlers=None,
-                 pipeline_config=None, trigger_defs=None):
+                 pipeline_config=None, trigger_defs=None, time_sync=None):
         logger.debug("PipelineManager: Using config: %s" % str(config))
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
         config.check_config()
         config.add_config_path(*config['config_path'])
+        if time_sync is None:
+            time_sync = ts.TimeSync()
+        self.time_sync = time_sync
+
         if db is not None:
             self.db = db
         else:
@@ -160,7 +165,8 @@ class PipelineManager(object):
         self.trigger_map = dict((tdef.name, tdef) for tdef in self.trigger_definitions)
 
         self.trigger_manager = TriggerManager(self.config, db=self.db,
-                                              trigger_defs=self.trigger_definitions)
+                                              trigger_defs=self.trigger_definitions,
+                                              time_sync=time_sync)
 
         self.pipeline_worker_batch_size = config['pipeline_worker_batch_size']
         self.pipeline_worker_delay = config['pipeline_worker_delay']
@@ -191,7 +197,7 @@ class PipelineManager(object):
 
     def current_time(self):
         # here so it's easily overridden.
-        return datetime.datetime.utcnow()
+        return self.time_sync.current_time()
 
     def _log_statistics(self):
         logger.info("Loaded %s streams. Fired %s, Expired %s." % (
@@ -213,7 +219,7 @@ class PipelineManager(object):
         debugger = trigger_def.debugger
         try:
             pipeline = Pipeline(pipeline_name, pipeline_config, self.pipeline_handlers)
-            new_events = pipeline.handle_events(events, debugger)
+            new_events = pipeline.handle_events(events, stream, debugger)
         except PipelineExecutionError:
             logger.error("Exception in pipeline %s handling stream %s" % (
                           pipeline_name, stream.id))
