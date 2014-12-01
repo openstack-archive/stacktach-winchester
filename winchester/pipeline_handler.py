@@ -118,7 +118,7 @@ class UsageHandler(PipelineHandlerBase):
                 break
 
         if not exists:
-            raise UsageException("U0", "No .exists record.")
+            raise UsageException("U0", "No .exists notification found.")
 
         return exists
 
@@ -167,14 +167,14 @@ class UsageHandler(PipelineHandlerBase):
 
         if deleted_at and state != "deleted":
             raise UsageException("U3", ".exists state not 'deleted' but "
-                             "deleted_at is set.")
+                             ".exists deleted_at is set.")
 
         if deleted_at and not deleted:
             # We've already confirmed it's in the "deleted" state.
             launched_at = exists.get('launched_at')
             if deleted_at < launched_at:
                 raise UsageException("U4",
-                                    ".exists deleted_at < launched_at.")
+                              ".exists deleted_at < .exists launched_at.")
 
             # Is the deleted_at within this audit period?
             if (deleted_at >= self.audit_beginning
