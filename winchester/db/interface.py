@@ -235,6 +235,34 @@ class DBInterface(object):
         return stream
 
     @sessioned
+    def find_streams(self, stream_id=None, state=None, older_than=None, younger_than=None,
+                     name=None, distinguishing_traits=None,
+                     session=None, include_events=False):
+        q = session.query(models.Stream)
+        if stream_id is not None:
+            q = q.filter(models.Stream.id == stream_id)
+        if state is not None:
+            q = q.filter(models.Stream.state == int(state))
+        if older_than is not None:
+            q = q.filter(models.Stream.first_event < older_than)
+        if younger_than is not None:
+            q = q.filter(models.Stream.last_event > younger_than)
+        if name is not None:
+            q = q.filter(models.Stream.name == name)
+        if distinguishing_traits is not None:
+            for name, val in distinguishing_traits.items():
+                q = q.filter(models.Stream.distinguished_by.any(and_(
+                        models.DistinguishingTrait.name == name,
+                        models.DistinguishingTrait.value == val)))
+        stream_info = []
+        for stream in q.all():
+            info = stream.as_dict
+            if include_events:
+                info['events'] = self.get_stream_events(stream, session=session)
+            stream_info.append(info)
+        return stream_info
+
+    @sessioned
     def purge_stream(self, stream, session=None):
         if stream not in session:
             session.add(stream)

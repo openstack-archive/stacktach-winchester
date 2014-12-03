@@ -354,6 +354,19 @@ class Stream(ProxiedDictMixin, Base):
     def distinguished_by_dict(self):
         return dict(self._proxied)
 
+    @property
+    def as_dict(self):
+        return {'name': self.name,
+                'id': self.id,
+                'state': StreamState(self.state).name,
+                'first_event': self.first_event,
+                'last_event': self.last_event,
+                'fire_timestamp': self.fire_timestamp,
+                'expire_timestamp': self.expire_timestamp,
+                'distinguishing_traits': self.distinguished_by_dict}
+
+
+
     def __init__(self, name, first_event, last_event=None, expire_timestamp=None,
                 fire_timestamp=None, state=None, state_serial_no=None):
         self.name = name
