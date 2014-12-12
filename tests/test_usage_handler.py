@@ -189,12 +189,72 @@ class TestUsageHandler(unittest.TestCase):
                 self.assertEquals("Error", f['error'])
                 self.assertEquals("UX", f['error_code'])
 
+    def test_handle_events_warnings(self):
+        def fake_find_exists(events):
+            self.handler.warnings = ['one', 'two']
+            return {'timestamp':'now', 'instance_id':'inst'}
 
+        env = {'stream_id': 123}
+        with mock.patch.object(self.handler, "_find_exists") as ex:
+            ex.side_effect = fake_find_exists
+            with mock.patch.object(self.handler, "_do_checks") as c:
+                events = self.handler.handle_events([], env)
+                self.assertEquals(2, len(events))
+                self.assertEquals("compute.instance.exists.warnings",
+                                  events[0]['event_type'])
+                self.assertEquals("compute.instance.exists.verified",
+                                  events[1]['event_type'])
+
+    def test_confirm_non_EOD_exists_no_events(self):
+        events = []
+        self.assertEquals(len(self.handler.warnings), 0)
+        self.handler._confirm_non_EOD_exists(events)
+        self.assertEquals(len(self.handler.warnings), 0)
+
+    def test_confirm_non_EOD_exists_no_interesting(self):
+        events = [{'event_type': 'foo'}]
+        self.assertEquals(len(self.handler.warnings), 0)
+        self.handler._confirm_non_EOD_exists(events)
+        self.assertEquals(len(self.handler.warnings), 0)
+
+    def test_confirm_non_EOD_exists_no_exists(self):
+        events = [{'event_type': 'compute.instance.rebuild.start',
+                   'message_id': 'xxx'}]
+        self.assertEquals(len(self.handler.warnings), 0)
+        self.handler._confirm_non_EOD_exists(events)
+        self.assertEquals(len(self.handler.warnings), 1)
+        x = "Interesting"
+        self.assertEquals(self.handler.warnings[0][:len(x)], x)
+
+    def test_confirm_non_EOD_exists_good(self):
+        events = [{'event_type': 'compute.instance.rebuild.start'},
+                  {'event_type': 'compute.instance.exists'}]
+        self.assertEquals(len(self.handler.warnings), 0)
+        with mock.patch.object(self.handler, "_is_non_EOD_exists") as eod:
+            with mock.patch.object(self.handler, "_verify_fields") as vf:
+                eod.return_value = True
+                self.handler._confirm_non_EOD_exists(events)
+                self.assertEquals(len(self.handler.warnings), 0)
+
+    def test_confirm_non_EOD_exists_not_EOD(self):
+        events = [{'event_type': 'compute.instance.exists',
+                   'message_id': 'blah'}]
+        self.assertEquals(len(self.handler.warnings), 0)
+        with mock.patch.object(self.handler, "_is_non_EOD_exists") as eod:
+            with mock.patch.object(self.handler, "_verify_fields") as vf:
+                eod.return_value = True
+                self.handler._confirm_non_EOD_exists(events)
+                self.assertEquals(len(self.handler.warnings), 1)
+                x = "Non-EOD"
+                self.assertEquals(self.handler.warnings[0][:len(x)], x)
+
+
+    @mock.patch.object(pipeline_handler.UsageHandler, '_confirm_non_EOD_exists')
     @mock.patch.object(pipeline_handler.UsageHandler, '_get_core_fields')
     @mock.patch.object(pipeline_handler.UsageHandler, '_extract_launched_at')
     @mock.patch.object(pipeline_handler.UsageHandler, '_find_events')
     @mock.patch.object(pipeline_handler.UsageHandler, '_confirm_launched_at')
     @mock.patch.object(pipeline_handler.UsageHandler, '_confirm_delete')
-    def test_do_check(self, cd, cla, fe, ela, gcf):
+    def test_do_check(self, cd, cla, fe, ela, gcf, cnee):
         fe.return_value = [1,2,3]
         self.handler._do_checks({}, [])
