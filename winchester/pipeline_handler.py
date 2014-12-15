@@ -99,6 +99,22 @@ class UsageException(Exception):
 
 
 class UsageHandler(PipelineHandlerBase):
+    def __init__(self, **kw):
+        super(UsageHandler, self).__init__(**kw)
+        self.warnings = []
+
+    def _is_non_EOD_exists(self, event):
+        # For non-EOD .exists, we just check that the APB and APE are
+        # not 24hrs apart. We could check that it's not midnight, but
+        # could be possible (though unlikely).
+        # And, if we don't find any extras, don't error out ...
+        # we'll do that later.
+        apb = event.get('audit_period_beginning')
+        ape = event.get('audit_period_ending')
+        return (event['event_type'] == 'compute.instance.exists'
+            and apb and ape
+            and ape.date() != (apb.date() + datetime.timedelta(days=1)))
+
     def _find_exists(self, events):
         exists = None
 
@@ -132,6 +148,9 @@ class UsageHandler(PipelineHandlerBase):
                         if event['event_type'] in interesting]
 
     def _find_events(self, events):
+        # We could easily end up with no events in final_set if
+        # there were no operations performed on an instance that day.
+        # We'll still get a .exists for every active instance though.
         interesting = ['compute.instance.rebuild.start',
                        'compute.instance.resize.prep.start',
                        'compute.instance.resize.revert.start',
@@ -142,24 +161,20 @@ class UsageHandler(PipelineHandlerBase):
                        'compute.instance.resize.revert.end',
                        'compute.instance.rescue.end']
 
-        # We could easily end up with no events in final_set if
-        # there were no operations performed on an instance that day.
-        # We'll still get a .exists for every active instance though.
-
         return self._extract_interesting_events(events, interesting)
 
     def _find_deleted_events(self, events):
         interesting = ['compute.instance.delete.end']
         return self._extract_interesting_events(events, interesting)
 
-    def _verify_fields(self, exists, launch, fields):
+    def _verify_fields(self, this, that, fields):
         for field in fields:
-            if field not in exists and field not in launch:
+            if field not in this and field not in that:
                 continue
-            if exists[field] != launch[field]:
+            if this[field] != that[field]:
                 raise UsageException("U2",
                                 "Conflicting '%s' values ('%s' != '%s')"
-                                % (field, exists[field], launch[field]))
+                                % (field, this[field], that[field]))
 
     def _confirm_delete(self, exists, deleted, fields):
         deleted_at = exists.get('deleted_at')
@@ -214,21 +229,58 @@ class UsageHandler(PipelineHandlerBase):
         return ['launched_at', 'instance_flavor_id', 'tenant_id',
                 'os_architecture', 'os_version', 'os_distro']
 
+    def _confirm_non_EOD_exists(self, events):
+        interesting = ['compute.instance.rebuild.start',
+                       'compute.instance.resize.prep.start',
+                       'compute.instance.rescue.start']
+
+        last_interesting = None
+        fields = ['launched_at', 'deleted_at']
+        for event in events:
+            if event['event_type'] in interesting:
+                last_interesting = event
+            elif (event['event_type'] == 'compute.instance.exists' and
+                self._is_non_EOD_exists(event)):
+                    if last_interesting:
+                        self._verify_fields(last_interesting, event, fields)
+                        last_interesting = None
+                    else:
+                        self.warnings.append("Non-EOD .exists found "
+                                             "(msg_id: %s) "
+                                             "with no parent event." %
+                                             event['message_id'])
+
+        # We got an interesting event, but no related .exists.
+        if last_interesting:
+            self.warnings.append("Interesting event '%s' (msg_id: %s) "
+                                 "but no related non-EOD .exists record." %
+                                 (last_interesting['event_type'],
+                                  last_interesting['message_id']))
+
     def _do_checks(self, exists, events):
         core_fields = self._get_core_fields()
         delete_fields = ['launched_at', 'deleted_at']
 
+        # Ensure all the important fields of the important events
+        # match with the EOD .exists values.
         self._extract_launched_at(exists)
-        deleted = self._find_deleted_events(events)
         for c in self._find_events(events):
             self._verify_fields(exists, c, core_fields)
 
         self._confirm_launched_at(exists, events)
+
+        # Ensure the deleted_at value matches as well.
+        deleted = self._find_deleted_events(events)
         self._confirm_delete(exists, deleted, delete_fields)
+
+        # Check the non-EOD .exists records. They should
+        # appear after an interesting event.
+        self._confirm_non_EOD_exists(events)
 
     def handle_events(self, events, env):
         self.env = env
         self.stream_id = env['stream_id']
+        self.warnings = []
 
         exists = None
         error = None
@@ -254,6 +306,20 @@ class UsageHandler(PipelineHandlerBase):
             for event in events:
                 logger.warn("^Event: %s - %s" %
                                     (event['timestamp'], event['event_type']))
+
+        # We could have warnings, but a valid event list.
+        if self.warnings:
+            instance_id = "n/a"
+            if len(events):
+                instance_id = events[0].get('instance_id')
+            warning_event = {'event_type': 'compute.instance.exists.warnings',
+                             'message_id': str(uuid.uuid4()),
+                             'timestamp': exists.get('timestamp',
+                                                    datetime.datetime.utcnow()),
+                             'stream_id': int(self.stream_id),
+                             'instance_id': instance_id,
+                             'warnings': self.warnings}
+            events.append(warning_event)
 
         if exists:
             new_event = {'event_type': event_type,
