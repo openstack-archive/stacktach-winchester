@@ -235,7 +235,8 @@ class DBInterface(object):
         return stream
 
     @sessioned
-    def find_streams(self, stream_id=None, state=None, older_than=None, younger_than=None,
+    def find_streams(self, count=False, stream_id=None, state=None,
+                     older_than=None, younger_than=None,
                      name=None, distinguishing_traits=None,
                      session=None, include_events=False):
         q = session.query(models.Stream)
@@ -254,6 +255,11 @@ class DBInterface(object):
                 q = q.filter(models.Stream.distinguished_by.any(and_(
                         models.DistinguishingTrait.name == name,
                         models.DistinguishingTrait.value == val)))
+
+        if count:
+            q = q.count()
+            return [{"count": q}]
+
         stream_info = []
         for stream in q.all():
             info = stream.as_dict

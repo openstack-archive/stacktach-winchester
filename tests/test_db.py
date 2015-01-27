@@ -446,4 +446,6 @@ class TestDB(unittest.TestCase):
         with self.assertRaises(db.NoSuchStreamError):
             self.db.get_stream_by_id(1)
 
-
+    def test_find_stream_count(self):
+        count = self.db.find_streams(count=True)
+        self.assertEqual([{'count': 8}], count)
