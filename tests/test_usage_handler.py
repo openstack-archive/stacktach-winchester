@@ -285,9 +285,11 @@ class TestUsageHandler(unittest.TestCase):
         env = {'stream_id': 123}
         raw = [{'event_type': 'foo'}]
         events = self.handler.handle_events(raw, env)
-        self.assertEquals(2, len(events))
+        self.assertEquals(1, len(events))
+        notifications = env['usage_notifications']
+        self.assertEquals(1, len(notifications))
         self.assertEquals("compute.instance.exists.failed",
-                          events[1]['event_type'])
+                          notifications[0]['event_type'])
 
     @mock.patch.object(pipeline_handler.UsageHandler, '_process_block')
     def test_handle_events_exists(self, pb):
@@ -306,7 +308,9 @@ class TestUsageHandler(unittest.TestCase):
                {'event_type': 'foo'},
                ]
         events = self.handler.handle_events(raw, env)
-        self.assertEquals(4, len(events))
+        self.assertEquals(3, len(events))
+        notifications = env['usage_notifications']
+        self.assertEquals(1, len(notifications))
         self.assertEquals("compute.instance.exists.failed",
-                          events[3]['event_type'])
+                          notifications[0]['event_type'])
         self.assertTrue(pb.called)

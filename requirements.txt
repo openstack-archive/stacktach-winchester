@@ -8,3 +8,4 @@ enum34>=1.0
 SQLAlchemy>=0.9.6
 python-dateutil
 requests
+notabene>=0.0.dev0

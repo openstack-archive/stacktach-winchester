@@ -55,7 +55,7 @@ class Pipeline(object):
                 handler = handler_class(**params)
             except Exception as e:
                 logger.exception("Error initalizing handler %s for pipeline %s" %
-                                 handler_class, self.name)
+                                 (handler_class, self.name))
                 raise PipelineExecutionError("Error loading pipeline", e)
             self.handlers.append(handler)
 
@@ -186,8 +186,8 @@ class PipelineManager(object):
             try:
                 plugins[name] = simport.load(cls_string)
             except simport.ImportFailed as e:
-                log.error("Could not load plugin %s: Import failed. %s" % (
-                          name, e))
+                logger.error("Could not load plugin %s: Import failed. %s" % (
+                             name, e))
             except (simport.MissingMethodOrFunction,
                     simport.MissingModule,
                     simport.BadDirectory) as e:
