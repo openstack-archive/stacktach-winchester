@@ -238,8 +238,24 @@ class DBInterface(object):
     def find_streams(self, count=False, stream_id=None, state=None,
                      older_than=None, younger_than=None,
                      name=None, distinguishing_traits=None,
-                     session=None, include_events=False):
+                     session=None, include_events=False,
+                     limit=None, mark=None):
+
+        order_desc = True
+
         q = session.query(models.Stream)
+        if mark is not None:
+            if mark.startswith('+'):
+                order_desc=False
+                mark = mark[1:]
+            if mark.startswith('-'):
+                order_desc=True
+                mark = mark[1:]
+            if mark:
+                if order_desc:
+                    q = q.filter(models.Stream.id < int(mark, 16))
+                else:
+                    q = q.filter(models.Stream.id > int(mark, 16))
         if stream_id is not None:
             q = q.filter(models.Stream.id == stream_id)
         if state is not None:
@@ -260,9 +276,20 @@ class DBInterface(object):
             q = q.count()
             return [{"count": q}]
 
+        if order_desc:
+            q = q.order_by(models.Stream.id.desc())
+            mark_fmt = '%x'
+        else:
+            q = q.order_by(models.Stream.id.asc())
+            mark_fmt = '+%x'
+
+        if limit is not None:
+            q = q.limit(limit)
+
         stream_info = []
         for stream in q.all():
             info = stream.as_dict
+            info['_mark'] = mark_fmt % stream.id
             if include_events:
                 info['events'] = self.get_stream_events(stream, session=session)
             stream_info.append(info)

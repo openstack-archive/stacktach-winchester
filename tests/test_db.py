@@ -449,3 +449,29 @@ class TestDB(unittest.TestCase):
     def test_find_stream_count(self):
         count = self.db.find_streams(count=True)
         self.assertEqual([{'count': 8}], count)
+
+    def test_find_stream_limit(self):
+        streams = self.db.find_streams(limit=2)
+        self.assertEqual(len(streams), 2)
+        self.assertEqual(streams[0]['id'], 8)
+        self.assertEqual(streams[1]['id'], 7)
+
+    def test_find_stream_limit_asc(self):
+        streams = self.db.find_streams(limit=2, mark='+')
+        self.assertEqual(len(streams), 2)
+        self.assertEqual(streams[0]['id'], 1)
+        self.assertEqual(streams[1]['id'], 2)
+
+    def test_find_stream_mark(self):
+        streams = self.db.find_streams(mark='7')
+        for stream in streams:
+            self.assertIn('_mark', stream)
+        self.assertEqual(streams[0]['id'], 6)
+        self.assertEqual(streams[1]['id'], 5)
+
+    def test_find_stream_mark_asc(self):
+        streams = self.db.find_streams(mark='+2')
+        for stream in streams:
+            self.assertIn('_mark', stream)
+        self.assertEqual(streams[0]['id'], 3)
+        self.assertEqual(streams[1]['id'], 4)
