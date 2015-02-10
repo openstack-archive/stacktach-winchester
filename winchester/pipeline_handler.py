@@ -4,6 +4,8 @@ import logging
 import six
 import uuid
 
+from notabene import kombu_driver as driver
+
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,136 @@ class LoggingHandler(PipelineHandlerBase):
 
     def commit(self):
         pass
+
+    def rollback(self):
+        pass
+
+
+class NotabeneException(Exception):
+    pass
+
+
+class ConnectionManager(object):
+    def __init__(self):
+        # {connection_properties:
+        #   {exchange_properties: (connection, exchange)}}
+        self.pool = {}
+
+    def _extract_params(self, kw):
+        host = kw.get('host', 'localhost')
+        user = kw.get('user', 'guest')
+        password = kw.get('password', 'guest')
+        port = kw.get('port', 5672)
+        vhost = kw.get('vhost', '/')
+        library = kw.get('library', 'librabbitmq')
+        exchange_name = kw.get('exchange')
+        exchange_type = kw.get('exchange_type', 'topic')
+
+        if exchange_name is None:
+            raise NotabeneException("No 'exchange' name provided")
+
+        connection_dict = {'host': host, 'port': port,
+                           'user': user, 'password': password,
+                           'library': library, 'vhost': vhost}
+        connection_tuple = tuple(sorted(connection_dict.items()))
+
+        exchange_dict = {'exchange_name': exchange_name,
+                         'exchange_type': exchange_type}
+        exchange_tuple = tuple(sorted(exchange_dict.items()))
+
+        return (connection_dict, connection_tuple,
+                exchange_dict, exchange_tuple)
+
+    def get_connection(self, properties, queue_name):
+        connection_dict, connection_tuple, \
+        exchange_dict, exchange_tuple = self._extract_params(properties)
+        connection_info = self.pool.get(connection_tuple)
+        if connection_info is None:
+            connection = driver.create_connection(connection_dict['host'],
+                                                  connection_dict['port'],
+                                                  connection_dict['user'],
+                                                  connection_dict['password'],
+                                                  connection_dict['library'],
+                                                  connection_dict['vhost'])
+            connection_info = (connection, {})
+            self.pool[connection_tuple] = connection_info
+        connection, exchange_pool = connection_info
+        exchange = exchange_pool.get(exchange_tuple)
+        if exchange is None:
+            exchange = driver.create_exchange(exchange_dict['exchange_name'],
+                                              exchange_dict['exchange_type'])
+            exchange_pool[exchange_tuple] = exchange
+
+            # Make sure the queue exists so we don't lose events.
+            queue = driver.create_queue(queue_name, exchange, queue_name,
+                                        channel=connection.channel())
+            queue.declare()
+
+        return (connection, exchange)
+
+
+# Global ConnectionManager. Shared by all Handlers.
+connection_manager = ConnectionManager()
+
+
+class NotabeneHandler(PipelineHandlerBase):
+    # Handlers are created per stream, so we have to be smart about
+    # things like connections to databases and queues.
+    # We don't want to create too many connections, and we have to
+    # remember that stream processing has to occur quickly, so
+    # we want to avoid round-trips where possible.
+    def __init__(self, **kw):
+        super(NotabeneHandler, self).__init__(**kw)
+        global connection_manager
+
+        self.queue_name = kw.get('queue_name')
+        if self.queue_name is None:
+            raise NotabeneException("No 'queue_name' provided")
+        self.connection, self.exchange = connection_manager.get_connection(
+                                                        kw, self.queue_name)
+
+        self.env_keys = kw.get('env_keys', [])
+
+    def handle_events(self, events, env):
+        keys = [key for key in self.env_keys]
+        self.pending_notifications = []
+        for key in keys:
+            self.pending_notifications.extend(env.get(key, []))
+        return events
+
+    def _format_notification(self, notification):
+        """Core traits are in the root of the notification and extra
+           traits go in the payload."""
+        core_keys = ['event_type', 'message_id', 'timestamp', 'service']
+        core = dict((key, notification.get(key)) for key in core_keys)
+
+        payload = dict((key, notification[key])
+                            for key in notification.keys()
+                                if key not in core_keys)
+
+        core['payload'] = payload
+
+        # Notifications require "publisher_id", not "service" ...
+        publisher = core.get('service')
+        if not publisher:
+            publisher = "stv3"
+        core['publisher_id'] = publisher
+        del core['service']
+
+        core['timestamp'] = str(core['timestamp'])
+        return core
+
+    def commit(self):
+        for notification in self.pending_notifications:
+            notification = self._format_notification(notification)
+            logger.debug("Publishing '%s' to '%s' with routing_key '%s'" %
+                            (notification['event_type'], self.exchange,
+                             self.queue_name))
+            try:
+                driver.send_notification(notification, self.queue_name,
+                                         self.connection, self.exchange)
+            except Exception as e:
+                logger.exception(e)
 
     def rollback(self):
         pass
@@ -309,7 +441,7 @@ class UsageHandler(PipelineHandlerBase):
                         }
             new_events.append(new_event)
 
-        events.extend(new_events)
+        env['usage_notifications'] = new_events
         return events
 
     def commit(self):
