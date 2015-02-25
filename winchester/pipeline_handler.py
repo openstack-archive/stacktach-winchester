@@ -365,6 +365,33 @@ class UsageHandler(PipelineHandlerBase):
         delete_fields = ['launched_at', 'deleted_at']
         self._confirm_delete(exists, deleted, delete_fields)
 
+    def _base_notification(self, exists):
+        apb, ape = self._get_audit_period(exists)
+        return {
+            'payload': {
+              'audit_period_beginning': apb,
+              'audit_period_ending': ape,
+              'launched_at': exists.get('launched_at', ''),
+              'deleted_at': exists.get('deleted_at', ''),
+              'instance_id': exists.get('instance_id', ''),
+              'tenant_id': exists.get('tenant_id', ''),
+              'display_name': exists.get('display_name', ''),
+              'instance_type': exists.get('instance_flavor', ''),
+              'flavor_id': exists.get('instance_flavor_id', ''),
+              'state': exists.get('state', ''),
+              'state_description': exists.get('state_description', ''),
+              'bandwidth': {'public': {
+                              'bw_in': exists.get('bandwidth_in', ''),
+                              'bw_out': exists.get('bandwidth_out', '')}},
+              'image_meta': {
+                'org.openstack__1__architecture':
+                                            exists.get('os_architecture', ''),
+                'org.openstack__1__os_version': exists.get('os_version', ''),
+                'org.openstack__1__os_distro': exists.get('os_distro', ''),
+                'org.rackspace__1__options': exists.get('rax_options', '')
+              }},
+            'source_exists_msg_id': exists.get('message_id', '')}
+
     def _process_block(self, block, exists):
         error = None
         try:
@@ -397,19 +424,18 @@ class UsageHandler(PipelineHandlerBase):
                              'timestamp': exists.get('timestamp',
                                                   datetime.datetime.utcnow()),
                              'stream_id': int(self.stream_id),
-                             'instance_id': instance_id,
+                             'instance_id': exists.get('instance_id'),
                              'warnings': self.warnings}
             events.append(warning_event)
 
-        new_event = {'event_type': event_type,
-                     'message_id': str(uuid.uuid4()),
-                     'timestamp': exists.get('timestamp',
+        new_event = self._base_notification(exists)
+        new_event.update({'event_type': event_type,
+                          'message_id': str(uuid.uuid4()),
+                          'timestamp': exists.get('timestamp',
                                              datetime.datetime.utcnow()),
-                     'stream_id': int(self.stream_id),
-                     'instance_id': exists.get('instance_id'),
-                     'error': str(error),
-                     'error_code': error and error.code
-                    }
+                          'stream_id': int(self.stream_id),
+                          'error': str(error),
+                          'error_code': error and error.code})
         events.append(new_event)
         return events
 
