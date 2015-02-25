@@ -195,7 +195,7 @@ class TestUsageHandler(unittest.TestCase):
                               f['event_type'])
             self.assertEquals("now", f['timestamp'])
             self.assertEquals(123, f['stream_id'])
-            self.assertEquals("inst", f['instance_id'])
+            self.assertEquals("inst", f['payload']['instance_id'])
             self.assertEquals("None", f['error'])
             self.assertIsNone(f['error_code'])
 
@@ -212,7 +212,7 @@ class TestUsageHandler(unittest.TestCase):
                               f['event_type'])
             self.assertEquals("now", f['timestamp'])
             self.assertEquals(123, f['stream_id'])
-            self.assertEquals("inst", f['instance_id'])
+            self.assertEquals("inst", f['payload']['instance_id'])
             self.assertEquals("Error", f['error'])
             self.assertEquals("UX", f['error_code'])
 
