@@ -156,6 +156,10 @@ class TestDB(unittest.TestCase):
         load_fixture_data(self.db, TEST_DATA)
         logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 
+        self.events = {}
+        for event in TEST_DATA[1]['event']:
+            self.events[event['message_id']] = event
+
     def tearDown(self):
         logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
         self.db.close()
@@ -475,3 +479,44 @@ class TestDB(unittest.TestCase):
             self.assertIn('_mark', stream)
         self.assertEqual(streams[0]['id'], 3)
         self.assertEqual(streams[1]['id'], 4)
+
+    def test_find_events(self):
+        events = self.db.find_events()
+        self.assertEqual(4, len(events))
+        for event in events:
+            self.assertTrue(event['message_id'] in self.events)
+
+    def test_find_events_date_filter(self):
+        _from = datetime.datetime(2014,8,1,10)
+        _to = datetime.datetime(2014,8,1,16)
+        events = self.db.find_events(from_datetime=_from, to_datetime=_to)
+        self.assertEqual(2, len(events))
+        msg_ids = [event['message_id'] for event in events]
+        for good in ['1234-5678-001', '1234-5678-002']:
+            self.assertTrue(good in msg_ids)
+
+    def test_find_events_event_type(self):
+        events = self.db.find_events(event_name='test.otherthing.foo')
+        self.assertEqual(2, len(events))
+        for event in events:
+            self.assertTrue(event['event_type'], 'test.otherthing.foo')
+
+    def test_find_events_traits(self):
+        traits = {'memory_mb': 1024}
+        events = self.db.find_events(traits=traits)
+        self.assertEqual(1, len(events))
+        self.assertTrue(events[0]['message_id'], '1234-5678-001')
+
+    def test_find_events_limit(self):
+        events = self.db.find_events(limit=2)
+        self.assertEqual(2, len(events))
+
+    def test_find_events_mark(self):
+        events = self.db.find_events(limit=2)
+        self.assertEqual(2, len(events))
+        msg_ids = [event['message_id'] for event in events]
+
+        events = self.db.find_events(limit=2, mark=events[-1]['_mark'])
+        self.assertEqual(2, len(events))
+        for event in events:
+            self.assertTrue(event['message_id'] not in msg_ids)

@@ -47,7 +47,6 @@ def sessioned(func):
 
 class DBInterface(object):
 
-
     @classmethod
     def config_description(cls):
         return dict(url=ConfigItem(required=True,
@@ -102,14 +101,16 @@ class DBInterface(object):
 
     @sessioned
     def get_event_type(self, description, session=None):
-        t = session.query(models.EventType).filter(models.EventType.desc == description).first()
+        t = session.query(models.EventType).filter(
+                                models.EventType.desc == description).first()
         if t is None:
             t = models.EventType(description)
             session.add(t)
         return t
 
     @sessioned
-    def create_event(self, message_id, event_type, generated, traits, session=None):
+    def create_event(self, message_id, event_type, generated, traits,
+                     session=None):
         event_type = self.get_event_type(event_type, session=session)
         e = models.Event(message_id, event_type, generated)
         for name in traits:
@@ -122,8 +123,60 @@ class DBInterface(object):
             e = session.query(models.Event).\
                 filter(models.Event.message_id == message_id).one()
         except NoResultFound:
-            raise NoSuchEventError("No event found with message_id %s!" % message_id)
+            raise NoSuchEventError(
+                            "No event found with message_id %s!" % message_id)
         return e.as_dict
+
+    @sessioned
+    def find_events(self, from_datetime=None, to_datetime=None,
+                    event_name=None, traits=None, mark=None, limit=None,
+                    session=None):
+
+        order_desc = True
+
+        q = session.query(models.Event)
+        if mark is not None:
+            if mark.startswith('+'):
+                order_desc=False
+                mark = mark[1:]
+            if mark.startswith('-'):
+                order_desc=True
+                mark = mark[1:]
+            if mark:
+                if order_desc:
+                    q = q.filter(models.Event.id < int(mark, 16))
+                else:
+                    q = q.filter(models.Event.id > int(mark, 16))
+        if from_datetime is not None:
+            q = q.filter(models.Event.generated > from_datetime)
+        if to_datetime is not None:
+            q = q.filter(models.Event.generated <= to_datetime)
+        if event_name is not None:
+            event_type = self.get_event_type(event_name,
+                                             session=session)
+            q = q.filter(models.Event.event_type_id == event_type.id)
+        if traits is not None:
+            for name, val in traits.items():
+                q = q.filter(models.Event.traits.any(and_(
+                        models.Trait.name == name,
+                        models.Trait.value == val)))
+
+        if order_desc:
+            q = q.order_by(models.Event.id.desc())
+            mark_fmt = '%x'
+        else:
+            q = q.order_by(models.Event.id.asc())
+            mark_fmt = '+%x'
+
+        if limit is not None:
+            q = q.limit(limit)
+
+        event_info = []
+        for event in q.all():
+            info = event.as_dict
+            info['_mark'] = mark_fmt % event.id
+            event_info.append(info)
+        return event_info
 
     @sessioned
     def get_stream_by_id(self, stream_id, session=None):
@@ -135,7 +188,8 @@ class DBInterface(object):
         return s
 
     @sessioned
-    def create_stream(self, trigger_name, initial_event, dist_traits, expire_expr, session=None):
+    def create_stream(self, trigger_name, initial_event, dist_traits,
+                      expire_expr, session=None):
         first_event_time = initial_event['timestamp']
         s = models.Stream(trigger_name, first_event_time)
         for trait_name in dist_traits:
