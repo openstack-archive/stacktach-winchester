@@ -369,10 +369,10 @@ class UsageHandler(PipelineHandlerBase):
         apb, ape = self._get_audit_period(exists)
         return {
             'payload': {
-              'audit_period_beginning': apb,
-              'audit_period_ending': ape,
-              'launched_at': exists.get('launched_at', ''),
-              'deleted_at': exists.get('deleted_at', ''),
+              'audit_period_beginning': str(apb),
+              'audit_period_ending': str(ape),
+              'launched_at': str(exists.get('launched_at', '')),
+              'deleted_at': str(exists.get('deleted_at', '')),
               'instance_id': exists.get('instance_id', ''),
               'tenant_id': exists.get('tenant_id', ''),
               'display_name': exists.get('display_name', ''),
@@ -431,8 +431,8 @@ class UsageHandler(PipelineHandlerBase):
         new_event = self._base_notification(exists)
         new_event.update({'event_type': event_type,
                           'message_id': str(uuid.uuid4()),
-                          'timestamp': exists.get('timestamp',
-                                             datetime.datetime.utcnow()),
+                          'timestamp': str(exists.get('timestamp',
+                                             datetime.datetime.utcnow())),
                           'stream_id': int(self.stream_id),
                           'error': str(error),
                           'error_code': error and error.code})
