@@ -1,0 +1,8 @@
+Verified+2: Jenkins
+Code-Review+2: Sandy Walsh <sandy.walsh@rackspace.com>
+Workflow+1: Sandy Walsh <sandy.walsh@rackspace.com>
+Submitted-by: Jenkins
+Submitted-at: Fri, 20 Mar 2015 17:19:06 +0000
+Reviewed-on: https://review.openstack.org/166256
+Project: stackforge/stacktach-winchester
+Branch: refs/heads/master
