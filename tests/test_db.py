@@ -486,6 +486,10 @@ class TestDB(unittest.TestCase):
         for event in events:
             self.assertTrue(event['message_id'] in self.events)
 
+    def test_find_event_count(self):
+        count = self.db.find_events(count=True)
+        self.assertEqual([{'count': 4}], count)
+
     def test_find_events_date_filter(self):
         _from = datetime.datetime(2014,8,1,10)
         _to = datetime.datetime(2014,8,1,16)

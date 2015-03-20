@@ -130,7 +130,7 @@ class DBInterface(object):
     @sessioned
     def find_events(self, from_datetime=None, to_datetime=None,
                     event_name=None, traits=None, mark=None, limit=None,
-                    session=None):
+                    session=None, count=False):
 
         order_desc = True
 
@@ -160,6 +160,10 @@ class DBInterface(object):
                 q = q.filter(models.Event.traits.any(and_(
                         models.Trait.name == name,
                         models.Trait.value == val)))
+
+        if count:
+            q = q.count()
+            return [{"count": q}]
 
         if order_desc:
             q = q.order_by(models.Event.id.desc())
