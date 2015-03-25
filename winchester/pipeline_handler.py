@@ -186,32 +186,9 @@ class NotabeneHandler(PipelineHandlerBase):
             self.pending_notifications.extend(env.get(key, []))
         return events
 
-    def _format_notification(self, notification):
-        """Core traits are in the root of the notification and extra
-           traits go in the payload."""
-        core_keys = ['event_type', 'message_id', 'timestamp', 'service']
-        core = dict((key, notification.get(key)) for key in core_keys)
-
-        payload = dict((key, notification[key])
-                            for key in notification.keys()
-                                if key not in core_keys)
-
-        core['payload'] = payload
-
-        # Notifications require "publisher_id", not "service" ...
-        publisher = core.get('service')
-        if not publisher:
-            publisher = "stv3"
-        core['publisher_id'] = publisher
-        del core['service']
-
-        core['timestamp'] = str(core['timestamp'])
-        return core
-
     def commit(self):
         for notification in self.pending_notifications:
-            notification = self._format_notification(notification)
-            logger.debug("Publishing '%s' to '%s' with routing_key '%s'" %
+            logger.info("Publishing '%s' to '%s' with routing_key '%s'" %
                             (notification['event_type'], self.exchange,
                              self.queue_name))
             try:
@@ -410,7 +387,8 @@ class UsageHandler(PipelineHandlerBase):
                          apb, ape, len(block)))
 
         if len(block) > 1:
-            logger.warn("Events for Stream: %s" % self.stream_id)
+            logger.warn("%s - events (stream: %s)"
+                                    % (event_type, self.stream_id))
             for event in block:
                 logger.warn("^Event: %s - %s" %
                                     (event['timestamp'], event['event_type']))
@@ -420,6 +398,7 @@ class UsageHandler(PipelineHandlerBase):
         if self.warnings:
             instance_id = exists.get('instance_id', 'n/a')
             warning_event = {'event_type': 'compute.instance.exists.warnings',
+                             'publisher_id': 'stv3',
                              'message_id': str(uuid.uuid4()),
                              'timestamp': exists.get('timestamp',
                                                   datetime.datetime.utcnow()),
@@ -431,8 +410,9 @@ class UsageHandler(PipelineHandlerBase):
         new_event = self._base_notification(exists)
         new_event.update({'event_type': event_type,
                           'message_id': str(uuid.uuid4()),
-                          'timestamp': str(exists.get('timestamp',
-                                             datetime.datetime.utcnow())),
+                          'publisher_id': 'stv3',
+                          'timestamp': exists.get('timestamp',
+                                             datetime.datetime.utcnow()),
                           'stream_id': int(self.stream_id),
                           'error': str(error),
                           'error_code': error and error.code})

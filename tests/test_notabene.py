@@ -180,41 +180,17 @@ class TestNotabeneHandler(unittest.TestCase):
         self.assertEquals(h.pending_notifications, ['cat', 'dog', 'fish'])
 
     @mock.patch.object(pipeline_handler.connection_manager, 'get_connection')
-    def test_format_notification(self, cm):
+    def test_commit(self, cm):
         cm.return_value = (1, 2)
         kw = {'queue_name': 'foo'}
         h = pipeline_handler.NotabeneHandler(**kw)
-        notification = {}
-        n = h._format_notification(notification)
-        self.assertEquals(n, {'event_type': None,
-                              'message_id': None,
-                              'publisher_id': 'stv3',
-                              'timestamp': 'None',
-                              'payload': {}})
 
-        now = datetime.datetime.utcnow()
-        notification = {'event_type': 'name',
-                        'message_id': '1234',
-                        'timestamp': now,
-                        'service': 'tests'}
-        n = h._format_notification(notification)
-        self.assertEquals(n, {'event_type': 'name',
-                              'message_id': '1234',
-                              'timestamp': str(now),
-                              'publisher_id': 'tests',
-                              'payload': {}})
-
-        notification = {'event_type': 'name',
-                        'message_id': '1234',
-                        'timestamp': now,
-                        'service': 'tests',
-                        'extra1': 'e1', 'extra2': 'e2'}
-        n = h._format_notification(notification)
-        self.assertEquals(n, {'event_type': 'name',
-                              'message_id': '1234',
-                              'timestamp': str(now),
-                              'publisher_id': 'tests',
-                              'payload': {'extra1': 'e1', 'extra2': 'e2'}})
+        h.pending_notifications = [{'event_type': 'event1'},
+                                   {'event_type': 'event2'}]
+        with mock.patch.object(pipeline_handler.driver,
+                                            'send_notification') as sn:
+            h.commit()
+            self.assertEquals(sn.call_count, 2)
 
     @mock.patch.object(pipeline_handler.connection_manager, 'get_connection')
     def test_commit(self, cm):
@@ -222,28 +198,13 @@ class TestNotabeneHandler(unittest.TestCase):
         kw = {'queue_name': 'foo'}
         h = pipeline_handler.NotabeneHandler(**kw)
 
-        h.pending_notifications = range(2)
-        with mock.patch.object(h, '_format_notification') as fn:
-            fn.return_value = {'event_type': 'event1'}
-            with mock.patch.object(pipeline_handler.driver,
-                                                'send_notification') as sn:
+        h.pending_notifications = [{'event_type': 'event1'},
+                                   {'event_type': 'event2'}]
+        with mock.patch.object(pipeline_handler.driver,
+                                            'send_notification') as sn:
+            sn.side_effect = TestException
+            with mock.patch.object(pipeline_handler.logger,
+                                                    'exception') as ex:
                 h.commit()
-                self.assertEquals(sn.call_count, 2)
-
-    @mock.patch.object(pipeline_handler.connection_manager, 'get_connection')
-    def test_commit(self, cm):
-        cm.return_value = (1, 2)
-        kw = {'queue_name': 'foo'}
-        h = pipeline_handler.NotabeneHandler(**kw)
-
-        h.pending_notifications = range(2)
-        with mock.patch.object(h, '_format_notification') as fn:
-            fn.return_value = {'event_type': 'event1'}
-            with mock.patch.object(pipeline_handler.driver,
-                                                'send_notification') as sn:
-                sn.side_effect = TestException
-                with mock.patch.object(pipeline_handler.logger,
-                                                        'exception') as ex:
-                    h.commit()
-                    self.assertEquals(ex.call_count, 2)
-                self.assertEquals(sn.call_count, 2)
+                self.assertEquals(ex.call_count, 2)
+            self.assertEquals(sn.call_count, 2)
