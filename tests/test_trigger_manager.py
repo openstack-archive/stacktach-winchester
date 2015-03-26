@@ -267,3 +267,19 @@ class TestTriggerManager(unittest.TestCase):
         self.assertFalse(tm._add_or_create_stream.called)
         self.assertFalse(tm.db.get_stream_events.called)
         self.assertFalse(tm._ready_to_fire.called)
+
+    @mock.patch.object(trigger_manager.ConfigManager, 'wrap') 
+    def test_add__del_trigger_definition(self, mock_config_wrap):
+        tm = trigger_manager.TriggerManager('test')
+        tm.db = mock.MagicMock(spec=tm.db)
+        td1 = dict(name='test_trigger1',
+                 expiration='$last + 1d',
+                 fire_pipeline='test_pipeline',
+                 fire_criteria=[dict(event_type='test.thing')],
+                 match_criteria=[dict(event_type='test.*')])
+        tdlist = list()
+        tdlist.append(td1)
+        tm.add_trigger_definition(tdlist)
+        self.assertTrue(tm.trigger_map.has_key('test_trigger1'))
+        tm.delete_trigger_definition('test_trigger1')
+        self.assertFalse(tm.trigger_map.has_key('test_trigger1'))
