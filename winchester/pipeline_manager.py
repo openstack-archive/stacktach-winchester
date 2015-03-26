@@ -82,6 +82,7 @@ class Pipeline(object):
 
     def handle_events(self, events, stream, debugger):
         self.env['stream_id'] = stream.id
+        self.env['stream_name'] = stream.name
         event_ids = set(e['message_id'] for e in events)
         try:
             for handler in self.handlers:
@@ -156,6 +157,7 @@ class PipelineManager(object):
                      % (self.proc_name, str(config)))
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
+        self.trigger_definitions = []
         config.check_config()
         config.add_config_path(*config['config_path'])
         if time_sync is None:
@@ -189,12 +191,12 @@ class PipelineManager(object):
         if trigger_defs is not None:
             self.trigger_definitions = trigger_defs
         else:
-            defs = config.load_file(config['trigger_definitions'])
-            logger.debug("Loaded trigger definitions %s" % str(defs))
-            self.trigger_definitions = [TriggerDefinition(conf, None) for conf
-                                        in defs]
-        self.trigger_map = dict(
-            (tdef.name, tdef) for tdef in self.trigger_definitions)
+            # trigger_definition config file is optional
+            if config.has_key('trigger_definitions'):
+                defs = config.load_file(config['trigger_definitions'])
+                logger.debug("Loaded trigger definitions %s" % str(defs))
+                self.trigger_definitions = [
+                    TriggerDefinition(conf, None) for conf in defs]
 
         self.trigger_manager = TriggerManager(
             self.config, db=self.db,
@@ -292,8 +294,14 @@ class PipelineManager(object):
         return trigger_def.debugger if trigger_def is not None else \
             self.trigger_manager.debug_manager.get_debugger(None)
 
+    def add_trigger_definition(self, list_of_triggerdefs):
+        self.trigger_manager.add_trigger_definition(list_of_triggerdefs)
+
+    def delete_trigger_definition(self, trigger_def_name):
+        self.trigger_manager.delete_trigger_definition(trigger_def_name)
+
     def fire_stream(self, stream):
-        trigger_def = self.trigger_map.get(stream.name)
+        trigger_def = self.trigger_manager.trigger_map.get(stream.name)
         debugger = self.safe_get_debugger(trigger_def)
         try:
             stream = self.db.set_stream_state(stream, StreamState.firing)
@@ -331,7 +339,7 @@ class PipelineManager(object):
         return True
 
     def expire_stream(self, stream):
-        trigger_def = self.trigger_map.get(stream.name)
+        trigger_def = self.trigger_manager.trigger_map.get(stream.name)
         debugger = self.safe_get_debugger(trigger_def)
         try:
             stream = self.db.set_stream_state(stream, StreamState.expiring)

@@ -94,7 +94,7 @@ class TriggerManager(object):
                 help="Path(s) to find additional config files",
                 multiple=True, default='.'),
             distiller_config=ConfigItem(
-                required=True,
+                required=False,
                 help="Name of distiller config file "
                      "describing what to extract from the "
                      "notifications"),
@@ -118,7 +118,7 @@ class TriggerManager(object):
                 help="Database connection info.",
                 config_description=DBInterface.config_description()),
             trigger_definitions=ConfigItem(
-                required=True,
+                required=False,
                 help="Name of trigger definitions file "
                      "defining trigger conditions and what events to "
                      "process for each stream"),
@@ -129,6 +129,7 @@ class TriggerManager(object):
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
         self.debug_manager = debugging.DebugManager()
+        self.trigger_definitions = []
         config.check_config()
         config.add_config_path(*config['config_path'])
         if time_sync is None:
@@ -142,22 +143,29 @@ class TriggerManager(object):
         if stackdistiller is not None:
             self.distiller = stackdistiller
         else:
-            dist_config = config.load_file(config['distiller_config'])
-            plugmap = self._load_plugins(config['distiller_trait_plugins'],
-                                         distiller.DEFAULT_PLUGINMAP)
-            self.distiller = distiller.Distiller(
-                dist_config,
-                trait_plugin_map=plugmap,
-                catchall=config['catch_all_notifications'])
+            # distiller_config is optional
+            if config.has_key('distiller_config'):
+                dist_config = config.load_file(config['distiller_config'])
+                plugmap = self._load_plugins(config['distiller_trait_plugins'],
+                                             distiller.DEFAULT_PLUGINMAP)
+                self.distiller = distiller.Distiller(
+                    dist_config,
+                    trait_plugin_map=plugmap,
+                    catchall=config['catch_all_notifications'])
         if trigger_defs is not None:
             self.trigger_definitions = trigger_defs
             for t in self.trigger_definitions:
                 t.set_debugger(self.debug_manager)
         else:
-            defs = config.load_file(config['trigger_definitions'])
-            self.trigger_definitions = [TriggerDefinition(conf,
-                                                          self.debug_manager)
-                                        for conf in defs]
+            # trigger_definition config file is optional
+            if config.has_key('trigger_definitions'):
+                defs = config.load_file(config['trigger_definitions'])
+                self.trigger_definitions = [
+                    TriggerDefinition(conf, self.debug_manager)
+                    for conf in defs]
+        # trigger_map is used to quickly access existing trigger_defs
+        self.trigger_map = dict(
+            (tdef.name, tdef) for tdef in self.trigger_definitions)
         self.saved_events = 0
         self.received = 0
         self.last_status = self.current_time()
@@ -246,8 +254,23 @@ class TriggerManager(object):
         timestamp = trigger_def.get_fire_timestamp(self.current_time())
         self.db.stream_ready_to_fire(stream, timestamp)
         trigger_def.debugger.bump_counter("Ready to fire")
-        logger.debug("Stream %s ready to fire at %s" % (
-            stream.id, timestamp))
+        logger.debug("Stream %s ready to fire at %s" % (stream.id, timestamp))
+
+    def add_trigger_definition(self, list_of_triggerdefs, debugger=None):
+        if debugger is None:
+            debugger = self.debug_manager
+        for td in list_of_triggerdefs:
+            if self.trigger_map.has_key(td['name']) is False:
+                # Only add if name is unique
+                tdef = TriggerDefinition(td, debugger)
+                self.trigger_definitions.append(tdef)
+                self.trigger_map[td['name']] = tdef
+
+    def delete_trigger_definition(self, trigger_def_name):
+        if self.trigger_map.has_key(trigger_def_name):
+            self.trigger_definitions.remove(
+                self.trigger_map.get(trigger_def_name))
+            del self.trigger_map[trigger_def_name]
 
     def add_event(self, event):
         if self.save_event(event):
