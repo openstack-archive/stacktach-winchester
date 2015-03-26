@@ -88,6 +88,9 @@ class ConfigManager(collections.Mapping):
             return self._defaults[key]
         raise KeyError(key)
 
+    def has_key(self, key):
+        return self._configs.has_key(key)
+
     def add_config_path(self, *args):
         for path in args:
             if path not in self.config_paths:
