@@ -38,7 +38,7 @@ def main():
     # This is a hack, but it's needed to pass the logfile name & default
     # loglevel into log handlers configured with a config file. (mdragon)
     logging.LOCAL_LOG_FILE = log_file
-    logging.LOCAL_DEFAULT_LEVEL = default_log_level
+    logging.LOCAL_DEFAULT_LEVEL = level
 
     if 'logging_config' in conf:
         fileConfig(conf['logging_config'])
