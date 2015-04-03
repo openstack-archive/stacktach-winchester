@@ -124,8 +124,12 @@ class PipelineManager(object):
         return configs
 
     def __init__(self, config, db=None, pipeline_handlers=None,
-                 pipeline_config=None, trigger_defs=None, time_sync=None):
-        logger.debug("PipelineManager: Using config: %s" % str(config))
+                 pipeline_config=None, trigger_defs=None, time_sync=None,
+                 proc_name='pipeline_worker'):
+        #name used to distinguish worker processes in logs
+        self.proc_name = proc_name
+
+        logger.debug("PipelineManager(%s): Using config: %s" % (self.proc_name, str(config)))
         config = ConfigManager.wrap(config, self.config_description())
         self.config = config
         config.check_config()
