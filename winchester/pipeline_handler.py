@@ -358,14 +358,14 @@ class UsageHandler(PipelineHandlerBase):
               'state': exists.get('state', ''),
               'state_description': exists.get('state_description', ''),
               'bandwidth': {'public': {
-                              'bw_in': exists.get('bandwidth_in', ''),
-                              'bw_out': exists.get('bandwidth_out', '')}},
+                              'bw_in': exists.get('bandwidth_in', 0),
+                              'bw_out': exists.get('bandwidth_out', 0)}},
               'image_meta': {
                 'org.openstack__1__architecture':
                                             exists.get('os_architecture', ''),
                 'org.openstack__1__os_version': exists.get('os_version', ''),
                 'org.openstack__1__os_distro': exists.get('os_distro', ''),
-                'org.rackspace__1__options': exists.get('rax_options', '')
+                'org.rackspace__1__options': exists.get('rax_options', '0')
               }},
             'original_message_id': exists.get('message_id', '')}
 
