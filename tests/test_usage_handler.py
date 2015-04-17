@@ -268,7 +268,7 @@ class TestUsageHandler(unittest.TestCase):
     @mock.patch.object(pipeline_handler.UsageHandler, '_find_deleted_events')
     @mock.patch.object(pipeline_handler.UsageHandler, '_confirm_delete')
     def test_do_check_interesting(self, cd, fde, inee, vf, gcf, cla):
-        block = [{'event_type': 'compute.instance.rebuild.start',
+        block = [{'event_type': 'compute.instance.rebuild.end',
                   'message_id': 1}]
         exists = {'event_type': 'compute.instance.exists',
                   'message_id': 2}

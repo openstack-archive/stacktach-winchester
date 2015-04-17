@@ -291,7 +291,7 @@ class UsageHandler(PipelineHandlerBase):
             raise UsageException("U7", "Multiple .delete.end events")
 
         if delete_events:
-            self._verify_fields(exists, delete_events[0],  fields)
+            self._verify_fields(exists, delete_events[-1],  fields)
 
     def _confirm_launched_at(self, block, exists):
         if exists.get('state') != 'active':
@@ -319,9 +319,9 @@ class UsageHandler(PipelineHandlerBase):
                 'os_architecture', 'os_version', 'os_distro']
 
     def _do_checks(self, block, exists):
-        interesting = ['compute.instance.rebuild.start',
-                       'compute.instance.resize.prep.start',
-                       'compute.instance.rescue.start']
+        interesting = ['compute.instance.rebuild.end',
+                       'compute.instance.resize.prep.end',
+                       'compute.instance.rescue.end']
 
         self._confirm_launched_at(block, exists)
 
