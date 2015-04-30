@@ -335,7 +335,7 @@ class UsageHandler(PipelineHandlerBase):
 
     def _do_checks(self, block, exists):
         interesting = ['compute.instance.rebuild.end',
-                       'compute.instance.resize.prep.end',
+                       'compute.instance.finish_resize.end',
                        'compute.instance.rescue.end']
 
         self._confirm_launched_at(block, exists)
