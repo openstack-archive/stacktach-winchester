@@ -1,14 +1,27 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest2 as unittest
 
 import mock
 
-import datetime
-import timex
-
-from winchester import debugging
 from winchester import db as winch_db
-from winchester import pipeline_manager
+from winchester import debugging
 from winchester.models import StreamState
+from winchester import pipeline_manager
 
 
 class TestPipeline(unittest.TestCase):
@@ -19,9 +32,9 @@ class TestPipeline(unittest.TestCase):
         self.fake_stream.id = "stream-1234"
 
     def test_check_handler_config(self):
-
         handler_map = {'test_thing': "blah"}
-        c = pipeline_manager.Pipeline.check_handler_config("test_thing", handler_map)
+        c = pipeline_manager.Pipeline.check_handler_config("test_thing",
+                                                           handler_map)
         self.assertIsInstance(c, dict)
         self.assertIn('name', c)
         self.assertIn('params', c)
@@ -48,16 +61,17 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(c['params'], {'book': 42})
 
         with self.assertRaises(pipeline_manager.PipelineConfigError):
-            c = pipeline_manager.Pipeline.check_handler_config("other_thing", handler_map)
+            pipeline_manager.Pipeline.check_handler_config("other_thing",
+                                                           handler_map)
 
         with self.assertRaises(pipeline_manager.PipelineConfigError):
             conf = dict(params={'book': 42})
-            c = pipeline_manager.Pipeline.check_handler_config(conf, handler_map)
+            pipeline_manager.Pipeline.check_handler_config(conf, handler_map)
 
     def test_init(self):
         conf = [dict(name='test_thing', params={'book': 42})]
         handler_class = mock.MagicMock()
-        handler_map = {'test_thing':  handler_class}
+        handler_map = {'test_thing': handler_class}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         self.assertEqual(p.name, "test_pipeline")
         self.assertEqual(len(p.handlers), 1)
@@ -75,21 +89,25 @@ class TestPipeline(unittest.TestCase):
         handler_class1 = mock.MagicMock(name='handler1')
         handler_class2 = mock.MagicMock(name='handler2')
         handler_class3 = mock.MagicMock(name='handler3')
-        handler_class3.return_value.handle_events.return_value = test_events + new_events
+        handler_class3.return_value.handle_events.return_value = (
+            test_events + new_events)
 
-        handler_map = {'test_thing':  handler_class1,
+        handler_map = {'test_thing': handler_class1,
                        'other_thing': handler_class2,
-                       'some_thing':  handler_class3}
+                       'some_thing': handler_class3}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         p.commit = mock.MagicMock(name='commit')
         p.rollback = mock.MagicMock(name='rollback')
 
         ret = p.handle_events(test_events, self.fake_stream, self.debugger)
-        handler_class1.return_value.handle_events.assert_called_once_with(test_events, p.env)
+        handler_class1.return_value.handle_events.assert_called_once_with(
+            test_events, p.env)
         events1 = handler_class1.return_value.handle_events.return_value
-        handler_class2.return_value.handle_events.assert_called_once_with(events1, p.env)
+        handler_class2.return_value.handle_events.assert_called_once_with(
+            events1, p.env)
         events2 = handler_class2.return_value.handle_events.return_value
-        handler_class3.return_value.handle_events.assert_called_once_with(events2, p.env)
+        handler_class3.return_value.handle_events.assert_called_once_with(
+            events2, p.env)
         p.commit.assert_called_once_with(self.debugger)
         self.assertFalse(p.rollback.called)
         self.assertEqual(ret, new_events)
@@ -108,11 +126,12 @@ class TestPipeline(unittest.TestCase):
         class WhackyError(Exception):
             pass
 
-        handler_class2.return_value.handle_events.side_effect = WhackyError("whoa!")
+        handler_class2.return_value.handle_events.side_effect = WhackyError(
+            "whoa!")
 
-        handler_map = {'test_thing':  handler_class1,
+        handler_map = {'test_thing': handler_class1,
                        'other_thing': handler_class2,
-                       'some_thing':  handler_class3}
+                       'some_thing': handler_class3}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         p.commit = mock.MagicMock(name='commit')
         p.rollback = mock.MagicMock(name='rollback')
@@ -130,9 +149,9 @@ class TestPipeline(unittest.TestCase):
         handler_class2 = mock.MagicMock(name='handler2')
         handler_class3 = mock.MagicMock(name='handler3')
 
-        handler_map = {'test_thing':  handler_class1,
+        handler_map = {'test_thing': handler_class1,
                        'other_thing': handler_class2,
-                       'some_thing':  handler_class3}
+                       'some_thing': handler_class3}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         p.commit(self.debugger)
         handler_class1.return_value.commit.assert_called_once_with()
@@ -152,9 +171,9 @@ class TestPipeline(unittest.TestCase):
 
         handler_class2.return_value.commit.side_effect = WhackyError("whoa!")
 
-        handler_map = {'test_thing':  handler_class1,
+        handler_map = {'test_thing': handler_class1,
                        'other_thing': handler_class2,
-                       'some_thing':  handler_class3}
+                       'some_thing': handler_class3}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         p.commit(self.debugger)
         handler_class1.return_value.commit.assert_called_once_with()
@@ -169,9 +188,9 @@ class TestPipeline(unittest.TestCase):
         handler_class2 = mock.MagicMock(name='handler2')
         handler_class3 = mock.MagicMock(name='handler3')
 
-        handler_map = {'test_thing':  handler_class1,
+        handler_map = {'test_thing': handler_class1,
                        'other_thing': handler_class2,
-                       'some_thing':  handler_class3}
+                       'some_thing': handler_class3}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         p.rollback(self.debugger)
         handler_class1.return_value.rollback.assert_called_once_with()
@@ -191,9 +210,9 @@ class TestPipeline(unittest.TestCase):
 
         handler_class2.return_value.rollback.side_effect = WhackyError("whoa!")
 
-        handler_map = {'test_thing':  handler_class1,
+        handler_map = {'test_thing': handler_class1,
                        'other_thing': handler_class2,
-                       'some_thing':  handler_class3}
+                       'some_thing': handler_class3}
         p = pipeline_manager.Pipeline("test_pipeline", conf, handler_map)
         p.rollback(self.debugger)
         handler_class1.return_value.rollback.assert_called_once_with()
@@ -202,7 +221,6 @@ class TestPipeline(unittest.TestCase):
 
 
 class TestPipelineManager(unittest.TestCase):
-
     def setUp(self):
         super(TestPipelineManager, self).setUp()
         self.debugger = debugging.NoOpDebugger()
@@ -214,7 +232,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.purge_completed_streams = False
         stream = "test stream"
         pm._complete_stream(stream)
-        pm.db.set_stream_state.assert_called_once_with(stream, StreamState.completed)
+        pm.db.set_stream_state.assert_called_once_with(stream,
+                                                       StreamState.completed)
 
     @mock.patch.object(pipeline_manager.ConfigManager, 'wrap')
     def test_complete_stream_purge(self, mock_config_wrap):
@@ -231,7 +250,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db = mock.MagicMock(spec=pm.db)
         stream = "test stream"
         pm._error_stream(stream)
-        pm.db.set_stream_state.assert_called_once_with(stream, StreamState.error)
+        pm.db.set_stream_state.assert_called_once_with(stream,
+                                                       StreamState.error)
 
     @mock.patch.object(pipeline_manager.ConfigManager, 'wrap')
     def test_expire_error_stream(self, mock_config_wrap):
@@ -239,7 +259,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db = mock.MagicMock(spec=pm.db)
         stream = "test stream"
         pm._expire_error_stream(stream)
-        pm.db.set_stream_state.assert_called_once_with(stream, StreamState.expire_error)
+        pm.db.set_stream_state.assert_called_once_with(
+            stream, StreamState.expire_error)
 
     @mock.patch('winchester.pipeline_manager.Pipeline', autospec=True)
     @mock.patch.object(pipeline_manager.ConfigManager, 'wrap')
@@ -283,7 +304,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.pipeline_handlers = mock.MagicMock(name='pipeline_handlers')
         pipeline = mock_pipeline.return_value
         pipeline.handle_events.side_effect = \
-                    pipeline_manager.PipelineExecutionError('test', 'thing')
+            pipeline_manager.PipelineExecutionError('test', 'thing')
 
         ret = pm._run_pipeline(stream, trigger_def, pipeline_name,
                                pipeline_config)
@@ -318,7 +339,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.assert_called_once_with(stream,
                                                        StreamState.firing)
         pm._run_pipeline.assert_called_once_with(stream, trigger_def,
-                                    'test_fire_pipeline', pipeline_config)
+                                                 'test_fire_pipeline',
+                                                 pipeline_config)
         self.assertFalse(pm._error_stream.called)
         pm._complete_stream.assert_called_once_with(stream)
         self.assertTrue(ret)
@@ -341,7 +363,8 @@ class TestPipelineManager(unittest.TestCase):
         pm._run_pipeline.return_value = True
 
         ret = pm.fire_stream(stream)
-        pm.db.set_stream_state.assert_called_once_with(stream, StreamState.firing)
+        pm.db.set_stream_state.assert_called_once_with(stream,
+                                                       StreamState.firing)
         self.assertFalse(pm._run_pipeline.called)
         self.assertFalse(pm._error_stream.called)
         self.assertFalse(pm._complete_stream.called)
@@ -364,7 +387,7 @@ class TestPipelineManager(unittest.TestCase):
 
         ret = pm.fire_stream(stream)
         pm.db.set_stream_state.assert_called_once_with(stream,
-                                                    StreamState.firing)
+                                                       StreamState.firing)
         self.assertFalse(pm._error_stream.called)
         self.assertFalse(pm._run_pipeline.called)
         pm._complete_stream.assert_called_once_with(stream)
@@ -391,8 +414,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.assert_called_once_with(stream,
                                                        StreamState.firing)
         pm._run_pipeline.assert_called_once_with(stream, trigger_def,
-                                         'test_fire_pipeline',
-                                         pipeline_config)
+                                                 'test_fire_pipeline',
+                                                 pipeline_config)
         self.assertFalse(pm._complete_stream.called)
         pm._error_stream.assert_called_once_with(stream)
         self.assertFalse(ret)
@@ -418,7 +441,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.assert_called_once_with(stream,
                                                        StreamState.expiring)
         pm._run_pipeline.assert_called_once_with(stream, trigger_def,
-                    'test_fire_pipeline', pipeline_config)
+                                                 'test_fire_pipeline',
+                                                 pipeline_config)
         self.assertFalse(pm._error_stream.called)
         pm._complete_stream.assert_called_once_with(stream)
         self.assertTrue(ret)
@@ -441,7 +465,8 @@ class TestPipelineManager(unittest.TestCase):
         pm._run_pipeline.return_value = True
 
         ret = pm.expire_stream(stream)
-        pm.db.set_stream_state.assert_called_once_with(stream, StreamState.expiring)
+        pm.db.set_stream_state.assert_called_once_with(stream,
+                                                       StreamState.expiring)
         self.assertFalse(pm._run_pipeline.called)
         self.assertFalse(pm._expire_error_stream.called)
         self.assertFalse(pm._complete_stream.called)
@@ -464,7 +489,7 @@ class TestPipelineManager(unittest.TestCase):
 
         ret = pm.expire_stream(stream)
         pm.db.set_stream_state.assert_called_once_with(stream,
-                                                    StreamState.expiring)
+                                                       StreamState.expiring)
         self.assertFalse(pm._expire_error_stream.called)
         self.assertFalse(pm._run_pipeline.called)
         pm._complete_stream.assert_called_once_with(stream)
@@ -491,7 +516,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.assert_called_once_with(stream,
                                                        StreamState.expiring)
         pm._run_pipeline.assert_called_once_with(stream, trigger_def,
-                                    'test_fire_pipeline', pipeline_config)
+                                                 'test_fire_pipeline',
+                                                 pipeline_config)
         self.assertFalse(pm._complete_stream.called)
         pm._expire_error_stream.assert_called_once_with(stream)
         self.assertFalse(ret)
@@ -510,8 +536,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.get_ready_streams.return_value = [stream]
 
         ret = pm.process_ready_streams(42)
-        pm.db.get_ready_streams.assert_called_once_with(42,
-                                pm.current_time.return_value, expire=False)
+        pm.db.get_ready_streams.assert_called_once_with(
+            42, pm.current_time.return_value, expire=False)
         pm.fire_stream.assert_called_once_with(stream)
         self.assertFalse(pm.expire_stream.called)
         self.assertEqual(ret, 1)
@@ -528,8 +554,8 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.get_ready_streams.return_value = [stream]
 
         ret = pm.process_ready_streams(42, expire=True)
-        pm.db.get_ready_streams.assert_called_once_with(42,
-                                pm.current_time.return_value, expire=True)
+        pm.db.get_ready_streams.assert_called_once_with(
+            42, pm.current_time.return_value, expire=True)
         pm.expire_stream.assert_called_once_with(stream)
         self.assertFalse(pm.fire_stream.called)
         self.assertEqual(ret, 1)
@@ -543,4 +569,3 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(pm.safe_get_debugger(tdef), self.debugger)
 
         self.assertEqual(pm.safe_get_debugger(None)._name, "n/a")
-

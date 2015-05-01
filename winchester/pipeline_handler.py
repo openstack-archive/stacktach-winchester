@@ -1,3 +1,19 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import abc
 import datetime
 import logging
@@ -16,63 +32,63 @@ class PipelineHandlerBase(object):
 
        Pipeline handlers perform the actual processing on a set of events
        captured by a stream. The handlers are chained together, each handler
-       in a pipeline is called in order, and receives the output of the previous
-       handler.
+       in a pipeline is called in order, and receives the output of the
+       previous handler.
 
        Once all of the handlers in a pipeline have successfully processed the
        events (with .handle_events() ), each handler's .commit() method will be
        called. If any handler in the chain raises an exception, processing of
-       events will stop, and each handler's .rollback() method will be called."""
+       events will stop, and each handler's .rollback() method will be called.
+
+    """
 
     def __init__(self, **kw):
-       """Setup the pipeline handler.
+        """Setup the pipeline handler.
 
-          A new instance of each handler for a pipeline is used for each
-          stream (set of events) processed.
+           A new instance of each handler for a pipeline is used for each
+           stream (set of events) processed.
 
-          :param kw: The parameters listed in the pipeline config file for
-                     this handler (if any).
-        """
+           :param kw: The parameters listed in the pipeline config file for
+                      this handler (if any).
+         """
 
     @abc.abstractmethod
     def handle_events(self, events, env):
-        """ This method handles the actual event processing.
+        """This method handles the actual event processing.
 
-            This method receives a list of events and should return a list of
-            events as well. The return value of this method will be passed to
-            the next handler's .handle_events() method. Handlers can add new
-            events simply by adding them to the list they return. New events
-            (those with unrecognized message_id's), will be saved to the
-            database if all handlers in this pipeline complete successfully.
-            Likewise, handlers can omit events from the list they return to
-            act as a filter for downstream handlers.
+        This method receives a list of events and should return a list of
+        events as well. The return value of this method will be passed to
+        the next handler's .handle_events() method. Handlers can add new
+        events simply by adding them to the list they return. New events
+        (those with unrecognized message_id's), will be saved to the
+        database if all handlers in this pipeline complete successfully.
+        Likewise, handlers can omit events from the list they return to
+        act as a filter for downstream handlers.
 
-            Care should be taken to avoid any operation with side-effects in
-            this method. Pipelines can be re-tried if a handler throws an
-            error. If you need to perform such operations, such as interacting
-            with an external system, save the needed information in an instance
-            variable, and perform the operation in the .commit() method.
+        Care should be taken to avoid any operation with side-effects in
+        this method. Pipelines can be re-tried if a handler throws an
+        error. If you need to perform such operations, such as interacting
+        with an external system, save the needed information in an instance
+        variable, and perform the operation in the .commit() method.
 
-            :param events: A list of events.
-            :param env:  Just a dictionary, it's passed to each handler, and
-                         can act as a shared scratchpad.
+        :param events: A list of events.
+        :param env:  Just a dictionary, it's passed to each handler, and
+                     can act as a shared scratchpad.
 
-            :returns: A list of events.
+        :returns: A list of events.
         """
 
     @abc.abstractmethod
     def commit(self):
-        """ Called when each handler in this pipeline has successfully
-            completed.
+        """Called when each handler in this pipeline successfully completes.
 
-            If you have operations with side effects, preform them here.
-            Exceptions raised here will be logged, but otherwise ignored.
+        If you have operations with side effects, preform them here.
+        Exceptions raised here will be logged, but otherwise ignored.
         """
 
     @abc.abstractmethod
     def rollback(self):
-        """ Called if there is an error for any handler while processing a list
-        of events.
+        """Called if error in any handler while processing a list of events.
 
         If you need to perform some kind of cleanup, do it here.
         Exceptions raised here will be logged, but otherwise ignored.
@@ -80,10 +96,9 @@ class PipelineHandlerBase(object):
 
 
 class LoggingHandler(PipelineHandlerBase):
-
     def handle_events(self, events, env):
         emsg = ', '.join("%s: %s" % (event['event_type'], event['message_id'])
-                        for event in events)
+                         for event in events)
         logger.info("Received %s events: \n%s" % (len(events), emsg))
         return events
 
@@ -130,8 +145,8 @@ class ConnectionManager(object):
                 exchange_dict, exchange_tuple)
 
     def get_connection(self, properties, queue_name):
-        connection_dict, connection_tuple, \
-        exchange_dict, exchange_tuple = self._extract_params(properties)
+        (connection_dict, connection_tuple,
+         exchange_dict, exchange_tuple) = self._extract_params(properties)
         connection_info = self.pool.get(connection_tuple)
         if connection_info is None:
             connection = driver.create_connection(connection_dict['host'],
@@ -175,7 +190,7 @@ class NotabeneHandler(PipelineHandlerBase):
         if self.queue_name is None:
             raise NotabeneException("No 'queue_name' provided")
         self.connection, self.exchange = connection_manager.get_connection(
-                                                        kw, self.queue_name)
+            kw, self.queue_name)
 
         self.env_keys = kw.get('env_keys', [])
 
@@ -189,8 +204,8 @@ class NotabeneHandler(PipelineHandlerBase):
     def commit(self):
         for notification in self.pending_notifications:
             logger.info("Publishing '%s' to '%s' with routing_key '%s'" %
-                            (notification['event_type'], self.exchange,
-                             self.queue_name))
+                        (notification['event_type'], self.exchange,
+                         self.queue_name))
             try:
                 driver.send_notification(notification, self.queue_name,
                                          self.connection, self.exchange)
@@ -228,7 +243,7 @@ class UsageHandler(PipelineHandlerBase):
         # we'll do that later.
         apb, ape = self._get_audit_period(event)
         return (self._is_exists(event) and apb and ape
-            and ape.date() != (apb.date() + datetime.timedelta(days=1)))
+                and ape.date() != (apb.date() + datetime.timedelta(days=1)))
 
     def _is_EOD_exists(self, event):
         # We could have several .exists records, but only the
@@ -236,9 +251,9 @@ class UsageHandler(PipelineHandlerBase):
         # 00:00:00 and be 24hrs apart.
         apb, ape = self._get_audit_period(event)
         return (self._is_exists(event) and apb and ape
-            and apb.time() == datetime.time(0, 0, 0)
-            and ape.time() == datetime.time(0, 0, 0)
-            and ape.date() == (apb.date() + datetime.timedelta(days=1)))
+                and apb.time() == datetime.time(0, 0, 0)
+                and ape.time() == datetime.time(0, 0, 0)
+                and ape.date() == (apb.date() + datetime.timedelta(days=1)))
 
     def _extract_launched_at(self, exists):
         if not exists.get('launched_at'):
@@ -247,7 +262,7 @@ class UsageHandler(PipelineHandlerBase):
 
     def _extract_interesting_events(self, events, interesting):
         return [event for event in events
-                        if event['event_type'] in interesting]
+                if event['event_type'] in interesting]
 
     def _find_deleted_events(self, events):
         interesting = ['compute.instance.delete.end']
@@ -259,8 +274,8 @@ class UsageHandler(PipelineHandlerBase):
                 continue
             if this[field] != that[field]:
                 raise UsageException("U2",
-                                "Conflicting '%s' values ('%s' != '%s')"
-                                % (field, this[field], that[field]))
+                                     "Conflicting '%s' values ('%s' != '%s')"
+                                     % (field, this[field], that[field]))
 
     def _confirm_delete(self, exists, delete_events, fields):
         deleted_at = exists.get('deleted_at')
@@ -269,23 +284,26 @@ class UsageHandler(PipelineHandlerBase):
 
         if not deleted_at and delete_events:
             raise UsageException("U6", ".deleted events found but .exists "
-                                "has no deleted_at value.")
+                                       "has no deleted_at value.")
 
         if deleted_at and state != "deleted":
             raise UsageException("U3", ".exists state not 'deleted' but "
-                             ".exists deleted_at is set.")
+                                       ".exists deleted_at is set.")
 
         if deleted_at and not delete_events:
             # We've already confirmed it's in the "deleted" state.
             launched_at = exists.get('launched_at')
             if deleted_at < launched_at:
-                raise UsageException("U4",
-                              ".exists deleted_at < .exists launched_at.")
+                raise UsageException(
+                    "U4",
+                    ".exists deleted_at < .exists launched_at.")
 
             # Is the deleted_at within this audit period?
             if (apb and ape and deleted_at >= apb and deleted_at <= ape):
-                raise UsageException("U5", ".exists deleted_at in audit "
-                    "period, but no matching .delete event found.")
+                raise UsageException("U5",
+                                     ".exists deleted_at in audit "
+                                     "period, but no matching .delete "
+                                     "event found.")
 
         if len(delete_events) > 1:
             raise UsageException("U7", "Multiple .delete.end events")
@@ -303,18 +321,15 @@ class UsageHandler(PipelineHandlerBase):
         # If so, we should have a related event. Otherwise, this
         # instance was created previously.
         launched_at = self._extract_launched_at(exists)
-        if (apb and ape and
-            launched_at >= apb and launched_at <= ape and
-            len(block) == 0):
-                raise UsageException("U8", ".exists launched_at in audit "
-                    "period, but no related events found.")
+        if apb and ape and apb <= launched_at <= ape and len(block) == 0:
+            raise UsageException("U8", ".exists launched_at in audit "
+                                       "period, but no related events found.")
 
-        # TODO(sandy): Confirm the events we got set launched_at
-        # properly.
+            # TODO(sandy): Confirm the events we got set launched_at
+            # properly.
 
     def _get_core_fields(self):
-        """Broken out so derived classes can define their
-           own trait list."""
+        """Broken out so derived classes can define their own trait list."""
         return ['launched_at', 'instance_flavor_id', 'tenant_id',
                 'os_architecture', 'os_version', 'os_distro']
 
@@ -346,27 +361,29 @@ class UsageHandler(PipelineHandlerBase):
         apb, ape = self._get_audit_period(exists)
         return {
             'payload': {
-              'audit_period_beginning': str(apb),
-              'audit_period_ending': str(ape),
-              'launched_at': str(exists.get('launched_at', '')),
-              'deleted_at': str(exists.get('deleted_at', '')),
-              'instance_id': exists.get('instance_id', ''),
-              'tenant_id': exists.get('tenant_id', ''),
-              'display_name': exists.get('display_name', ''),
-              'instance_type': exists.get('instance_flavor', ''),
-              'instance_flavor_id': exists.get('instance_flavor_id', ''),
-              'state': exists.get('state', ''),
-              'state_description': exists.get('state_description', ''),
-              'bandwidth': {'public': {
-                              'bw_in': exists.get('bandwidth_in', 0),
-                              'bw_out': exists.get('bandwidth_out', 0)}},
-              'image_meta': {
-                'org.openstack__1__architecture':
-                                            exists.get('os_architecture', ''),
-                'org.openstack__1__os_version': exists.get('os_version', ''),
-                'org.openstack__1__os_distro': exists.get('os_distro', ''),
-                'org.rackspace__1__options': exists.get('rax_options', '0')
-              }},
+                'audit_period_beginning': str(apb),
+                'audit_period_ending': str(ape),
+                'launched_at': str(exists.get('launched_at', '')),
+                'deleted_at': str(exists.get('deleted_at', '')),
+                'instance_id': exists.get('instance_id', ''),
+                'tenant_id': exists.get('tenant_id', ''),
+                'display_name': exists.get('display_name', ''),
+                'instance_type': exists.get('instance_flavor', ''),
+                'instance_flavor_id': exists.get('instance_flavor_id', ''),
+                'state': exists.get('state', ''),
+                'state_description': exists.get('state_description', ''),
+                'bandwidth': {'public': {
+                    'bw_in': exists.get('bandwidth_in', 0),
+                    'bw_out': exists.get('bandwidth_out', 0)}},
+                'image_meta': {
+                    'org.openstack__1__architecture': exists.get(
+                        'os_architecture', ''),
+                    'org.openstack__1__os_version': exists.get('os_version',
+                                                               ''),
+                    'org.openstack__1__os_distro': exists.get('os_distro', ''),
+                    'org.rackspace__1__options': exists.get('rax_options', '0')
+                }
+            },
             'original_message_id': exists.get('message_id', '')}
 
     def _process_block(self, block, exists):
@@ -378,7 +395,7 @@ class UsageHandler(PipelineHandlerBase):
             error = e
             event_type = "compute.instance.exists.failed"
             logger.warn("Stream %s UsageException: (%s) %s" %
-                                            (self.stream_id, e.code, e))
+                        (self.stream_id, e.code, e))
             apb, ape = self._get_audit_period(exists)
             logger.warn("Stream %s deleted_at: %s, launched_at: %s, "
                         "state: %s, APB: %s, APE: %s, #events: %s" %
@@ -388,10 +405,10 @@ class UsageHandler(PipelineHandlerBase):
 
         if len(block) > 1:
             logger.warn("%s - events (stream: %s)"
-                                    % (event_type, self.stream_id))
+                        % (event_type, self.stream_id))
             for event in block:
                 logger.warn("^Event: %s - %s" %
-                                    (event['timestamp'], event['event_type']))
+                            (event['timestamp'], event['event_type']))
 
         events = []
         # We could have warnings, but a valid event list.
@@ -400,10 +417,11 @@ class UsageHandler(PipelineHandlerBase):
             warning_event = {'event_type': 'compute.instance.exists.warnings',
                              'publisher_id': 'stv3',
                              'message_id': str(uuid.uuid4()),
-                             'timestamp': exists.get('timestamp',
-                                                  datetime.datetime.utcnow()),
+                             'timestamp': exists.get(
+                                 'timestamp',
+                                 datetime.datetime.utcnow()),
                              'stream_id': int(self.stream_id),
-                             'instance_id': exists.get('instance_id'),
+                             'instance_id': instance_id,
                              'warnings': self.warnings}
             events.append(warning_event)
 
@@ -412,7 +430,7 @@ class UsageHandler(PipelineHandlerBase):
                           'message_id': str(uuid.uuid4()),
                           'publisher_id': 'stv3',
                           'timestamp': exists.get('timestamp',
-                                             datetime.datetime.utcnow()),
+                                                  datetime.datetime.utcnow()),
                           'stream_id': int(self.stream_id),
                           'error': str(error),
                           'error_code': error and error.code})
@@ -435,16 +453,17 @@ class UsageHandler(PipelineHandlerBase):
 
         # Final block should be empty.
         if block:
-            new_event = {'event_type': "compute.instance.exists.failed",
-                         'message_id': str(uuid.uuid4()),
-                         'timestamp': block[0].get('timestamp',
-                                                   datetime.datetime.utcnow()),
-                         'stream_id': int(self.stream_id),
-                         'instance_id': block[0].get('instance_id'),
-                         'error': "Notifications, but no .exists "
-                                  "notification found.",
-                         'error_code': "U0"
-                        }
+            new_event = {
+                'event_type': "compute.instance.exists.failed",
+                'message_id': str(uuid.uuid4()),
+                'timestamp': block[0].get('timestamp',
+                                          datetime.datetime.utcnow()),
+                'stream_id': int(self.stream_id),
+                'instance_id': block[0].get('instance_id'),
+                'error': "Notifications, but no .exists "
+                         "notification found.",
+                'error_code': "U0"
+            }
             new_events.append(new_event)
 
         env['usage_notifications'] = new_events

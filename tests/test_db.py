@@ -1,12 +1,28 @@
-#for Python2.6 compatability.
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# for Python2.6 compatability.
 import unittest2 as unittest
 
-import mock
 import logging
 
 import datetime
 import timex
-from winchester import db, models
+from winchester import db
+from winchester import models
 
 logging.basicConfig()
 
@@ -15,91 +31,99 @@ TEST_DATA = [
         dict(id=1, desc='test.thing.begin'),
         dict(id=2, desc='test.thing.end'),
         dict(id=3, desc='test.otherthing.foo'),
-        ]},
+    ]},
     {'event': [
         dict(id=1,
-         message_id='1234-5678-001',
-         generated=datetime.datetime(2014,8,1,10,20,45,453201),
-         event_type_id=1,),
+             message_id='1234-5678-001',
+             generated=datetime.datetime(2014, 8, 1, 10, 20, 45, 453201),
+             event_type_id=1, ),
         dict(id=2,
-         message_id='1234-5678-002',
-         generated=datetime.datetime(2014,8,1,15,25,45,453201),
-         event_type_id=2,),
+             message_id='1234-5678-002',
+             generated=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             event_type_id=2, ),
         dict(id=3,
-         message_id='1234-5678-003',
-         generated=datetime.datetime(2014,8,1,2,10,12,0),
-         event_type_id=3,),
+             message_id='1234-5678-003',
+             generated=datetime.datetime(2014, 8, 1, 2, 10, 12, 0),
+             event_type_id=3, ),
         dict(id=4,
-         message_id='1234-5678-004',
-         generated=datetime.datetime(2014,8,1,4,57,55,42),
-         event_type_id=3,),
-        ]},
+             message_id='1234-5678-004',
+             generated=datetime.datetime(2014, 8, 1, 4, 57, 55, 42),
+             event_type_id=3, ),
+    ]},
     {'trait': [
         dict(event_id=1, name='instance_id', type=int(models.Datatype.string),
-         t_string='aaaa-bbbb-cccc-dddd'),
+             t_string='aaaa-bbbb-cccc-dddd'),
         dict(event_id=1, name='memory_mb', type=int(models.Datatype.int),
-         t_int=1024),
+             t_int=1024),
         dict(event_id=1, name='test_weight', type=int(models.Datatype.float),
-         t_float=20112.42),
-        dict(event_id=1, name='launched_at', type=int(models.Datatype.datetime),
-         t_datetime=datetime.datetime(2014,7,1,2,30,45,453201)),
-        ]},
+             t_float=20112.42),
+        dict(event_id=1, name='launched_at',
+             type=int(models.Datatype.datetime),
+             t_datetime=datetime.datetime(2014, 7, 1, 2, 30, 45, 453201)),
+    ]},
     {'stream': [
-        dict(id=1, first_event=datetime.datetime(2014,8,1,2,10,12,0),
-         last_event=datetime.datetime(2014,8,1,4,57,55,42),
-         name='test_trigger',
-         expire_timestamp=datetime.datetime(2014,8,2,4,57,55,42),
-         state=int(models.StreamState.active),
-         state_serial_no=0),
-        dict(id=2, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='another_test_trigger',
-         expire_timestamp=datetime.datetime(2014,8,2,4,57,55,42),
-         state=int(models.StreamState.active),
-         state_serial_no=0),
-        dict(id=3, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='fire_test_trigger',
-         fire_timestamp=datetime.datetime(2014,8,10,6,0,0,42),
-         expire_timestamp=datetime.datetime(2014,8,15,6,0,0,42),
-         state=int(models.StreamState.active),
-         state_serial_no=0),
-        dict(id=4, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='fire_test_trigger',
-         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
-         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
-         state=int(models.StreamState.active),
-         state_serial_no=0),
-        dict(id=5, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='reset_test_trigger',
-         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
-         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
-         state=int(models.StreamState.error),
-         state_serial_no=0),
-        dict(id=6, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='reset_test_trigger',
-         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
-         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
-         state=int(models.StreamState.expire_error),
-         state_serial_no=0),
-        dict(id=7, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='reset_test_trigger',
-         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
-         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
-         state=int(models.StreamState.retry_fire),
-         state_serial_no=0),
-        dict(id=8, first_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         last_event=datetime.datetime(2014,8,1,15,25,45,453201),
-         name='reset_test_trigger',
-         fire_timestamp=datetime.datetime(2014,8,11,6,0,0,42),
-         expire_timestamp=datetime.datetime(2014,8,16,0,0,0,42),
-         state=int(models.StreamState.retry_expire),
-         state_serial_no=0),
-        ]},
+        dict(id=1, first_event=datetime.datetime(2014, 8, 1, 2, 10, 12, 0),
+             last_event=datetime.datetime(2014, 8, 1, 4, 57, 55, 42),
+             name='test_trigger',
+             expire_timestamp=datetime.datetime(2014, 8, 2, 4, 57, 55, 42),
+             state=int(models.StreamState.active),
+             state_serial_no=0),
+        dict(id=2,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='another_test_trigger',
+             expire_timestamp=datetime.datetime(2014, 8, 2, 4, 57, 55, 42),
+             state=int(models.StreamState.active),
+             state_serial_no=0),
+        dict(id=3,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='fire_test_trigger',
+             fire_timestamp=datetime.datetime(2014, 8, 10, 6, 0, 0, 42),
+             expire_timestamp=datetime.datetime(2014, 8, 15, 6, 0, 0, 42),
+             state=int(models.StreamState.active),
+             state_serial_no=0),
+        dict(id=4,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='fire_test_trigger',
+             fire_timestamp=datetime.datetime(2014, 8, 11, 6, 0, 0, 42),
+             expire_timestamp=datetime.datetime(2014, 8, 16, 0, 0, 0, 42),
+             state=int(models.StreamState.active),
+             state_serial_no=0),
+        dict(id=5,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='reset_test_trigger',
+             fire_timestamp=datetime.datetime(2014, 8, 11, 6, 0, 0, 42),
+             expire_timestamp=datetime.datetime(2014, 8, 16, 0, 0, 0, 42),
+             state=int(models.StreamState.error),
+             state_serial_no=0),
+        dict(id=6,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='reset_test_trigger',
+             fire_timestamp=datetime.datetime(2014, 8, 11, 6, 0, 0, 42),
+             expire_timestamp=datetime.datetime(2014, 8, 16, 0, 0, 0, 42),
+             state=int(models.StreamState.expire_error),
+             state_serial_no=0),
+        dict(id=7,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='reset_test_trigger',
+             fire_timestamp=datetime.datetime(2014, 8, 11, 6, 0, 0, 42),
+             expire_timestamp=datetime.datetime(2014, 8, 16, 0, 0, 0, 42),
+             state=int(models.StreamState.retry_fire),
+             state_serial_no=0),
+        dict(id=8,
+             first_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             last_event=datetime.datetime(2014, 8, 1, 15, 25, 45, 453201),
+             name='reset_test_trigger',
+             fire_timestamp=datetime.datetime(2014, 8, 11, 6, 0, 0, 42),
+             expire_timestamp=datetime.datetime(2014, 8, 16, 0, 0, 0, 42),
+             state=int(models.StreamState.retry_expire),
+             state_serial_no=0),
+    ]},
     {'streamevent': [
         dict(stream_id=1, event_id=3),
         dict(stream_id=1, event_id=4),
@@ -107,30 +131,32 @@ TEST_DATA = [
         dict(stream_id=3, event_id=2),
         dict(stream_id=3, event_id=1),
         dict(stream_id=4, event_id=2),
-        ]},
+    ]},
     {'dist_trait': [
         dict(stream_id=1, name='instance_id', type=int(models.Datatype.string),
-         dt_string='zzzz-xxxx-yyyy-wwww'),
+             dt_string='zzzz-xxxx-yyyy-wwww'),
         dict(stream_id=1, name='memory_mb', type=int(models.Datatype.int),
-         dt_int=4096),
+             dt_int=4096),
         dict(stream_id=1, name='test_weight', type=int(models.Datatype.float),
-         dt_float=3.1415),
-        dict(stream_id=1, name='launched_at', type=int(models.Datatype.datetime),
-         dt_datetime=datetime.datetime(2014,7,8,9,40,50,77777)),
-        dict(stream_id=1, name='timestamp', type=int(models.Datatype.timerange),
-         dt_timerange_begin=datetime.datetime(2014,7,8,0,0,0,27),
-         dt_timerange_end=datetime.datetime(2014,7,9,0,0,0,27)),
-        ]},
+             dt_float=3.1415),
+        dict(stream_id=1, name='launched_at',
+             type=int(models.Datatype.datetime),
+             dt_datetime=datetime.datetime(2014, 7, 8, 9, 40, 50, 77777)),
+        dict(stream_id=1, name='timestamp',
+             type=int(models.Datatype.timerange),
+             dt_timerange_begin=datetime.datetime(2014, 7, 8, 0, 0, 0, 27),
+             dt_timerange_end=datetime.datetime(2014, 7, 9, 0, 0, 0, 27)),
+    ]},
 ]
 
 
 def create_tables(dbi):
-    #used for tests
+    # used for tests
     models.Base.metadata.create_all(dbi.engine)
 
 
 def load_fixture_data(dbi, data):
-    #Used for tests. This is fugly, refactor later (mdragon)
+    # Used for tests. This is fugly, refactor later (mdragon)
     for table in data:
         for table_name, rows in table.items():
             for row in rows:
@@ -168,16 +194,16 @@ class TestDB(unittest.TestCase):
         t = self.db.get_event_type('test.thing.begin')
         self.assertEqual(t.id, 1)
         t = self.db.get_event_type('test.not_in_db')
-        self.assertEqual(t.id, 4) #next unused id.
+        self.assertEqual(t.id, 4)  # next unused id.
 
     def test_create_event(self):
         message_id = '9876-0001-0001'
         event_type = 'test.thing.begin'
-        timestamp = datetime.datetime(2014,7,4,12,7,21,4096)
+        timestamp = datetime.datetime(2014, 7, 4, 12, 7, 21, 4096)
         traits = dict(test_string='foobar',
                       test_number=42,
                       test_float=3.1415,
-                      test_date=datetime.datetime(2014,7,1,0,0,0,0),
+                      test_date=datetime.datetime(2014, 7, 1, 0, 0, 0, 0),
                       somevalue=u'A fine test string')
         self.db.create_event(message_id, event_type, timestamp, traits)
         event = self.db.get_event_by_message_id(message_id)
@@ -196,11 +222,11 @@ class TestDB(unittest.TestCase):
     def test_create_event_duplicate(self):
         message_id = '9876-0001-0001'
         event_type = 'test.thing.begin'
-        timestamp = datetime.datetime(2014,7,4,12,7,21,4096)
+        timestamp = datetime.datetime(2014, 7, 4, 12, 7, 21, 4096)
         traits = dict(test_string='foobar',
                       test_number=42,
                       test_float=3.1415,
-                      test_date=datetime.datetime(2014,7,1,0,0,0,0),
+                      test_date=datetime.datetime(2014, 7, 1, 0, 0, 0, 0),
                       somevalue=u'A fine test string')
         self.db.create_event(message_id, event_type, timestamp, traits)
         with self.assertRaises(db.DuplicateError):
@@ -211,16 +237,18 @@ class TestDB(unittest.TestCase):
         self.assertEqual(len(event), 7)
         expected = dict(message_id='1234-5678-001',
                         event_type='test.thing.begin',
-                        timestamp=datetime.datetime(2014,8,1,10,20,45,453201),
+                        timestamp=datetime.datetime(2014, 8, 1, 10, 20, 45,
+                                                    453201),
                         instance_id='aaaa-bbbb-cccc-dddd',
                         memory_mb=1024,
                         test_weight=20112.42,
-                        launched_at=datetime.datetime(2014,7,1,2,30,45,453201),)
+                        launched_at=datetime.datetime(2014, 7, 1, 2, 30, 45,
+                                                      453201), )
         self.assertDictContainsSubset(expected, event)
 
     def test_get_stream_events(self):
         stream = self.db.get_stream_by_id(1)
-        events =  self.db.get_stream_events(stream)
+        events = self.db.get_stream_events(stream)
         self.assertEqual(len(events), 2)
         self.assertIn('1234-5678-003', [e['message_id'] for e in events])
         self.assertIn('1234-5678-004', [e['message_id'] for e in events])
@@ -228,37 +256,46 @@ class TestDB(unittest.TestCase):
     def test_create_stream(self):
         event = dict(message_id='1234-5678-001',
                      event_type='test.thing.begin',
-                     timestamp=datetime.datetime(2014,8,1,10,20,45,453201),
+                     timestamp=datetime.datetime(2014, 8, 1, 10, 20, 45,
+                                                 453201),
                      instance_id='aaaa-bbbb-cccc-dddd',
                      memory_mb=1024,
                      test_weight=20112.42,
-                     launched_at=datetime.datetime(2014,7,1,2,30,45,453201),)
-        timestamp = timex.TimeRange(datetime.datetime(2014,8,1,0,0,0,27),
-                                    datetime.datetime(2014,2,2,0,0,0,27))
+                     launched_at=datetime.datetime(2014, 7, 1, 2, 30, 45,
+                                                   453201), )
+        timestamp = timex.TimeRange(datetime.datetime(2014, 8, 1, 0, 0, 0, 27),
+                                    datetime.datetime(2014, 2, 2, 0, 0, 0, 27))
         dist_traits = dict(timestamp=timestamp,
                            instance_id='aaaa-bbbb-cccc-dddd')
 
         class MockTimestamp(object):
             pass
 
-        mock_expire_value = datetime.datetime(2014,8,2,12,12,12,12)
+        mock_expire_value = datetime.datetime(2014, 8, 2, 12, 12, 12, 12)
 
         def mock_time_expr(first, last):
-            self.assertEqual(first, datetime.datetime(2014,8,1,10,20,45,453201))
-            self.assertEqual(last, datetime.datetime(2014,8,1,10,20,45,453201))
+            self.assertEqual(first,
+                             datetime.datetime(2014, 8, 1, 10, 20, 45, 453201))
+            self.assertEqual(last,
+                             datetime.datetime(2014, 8, 1, 10, 20, 45, 453201))
             t = MockTimestamp()
             t.timestamp = mock_expire_value
             return t
 
-        stream = self.db.create_stream('test_create_stream', event, dist_traits, mock_time_expr)
+        stream = self.db.create_stream('test_create_stream', event,
+                                       dist_traits,
+                                       mock_time_expr)
         self.assertEqual(stream.name, 'test_create_stream')
-        self.assertEqual(stream.first_event, datetime.datetime(2014,8,1,10,20,45,453201))
-        self.assertEqual(stream.last_event, datetime.datetime(2014,8,1,10,20,45,453201))
+        self.assertEqual(stream.first_event,
+                         datetime.datetime(2014, 8, 1, 10, 20, 45, 453201))
+        self.assertEqual(stream.last_event,
+                         datetime.datetime(2014, 8, 1, 10, 20, 45, 453201))
         self.assertEqual(stream.expire_timestamp, mock_expire_value)
         self.assertIsNone(stream.fire_timestamp)
         self.assertEqual(stream.state, models.StreamState.active)
         self.assertEqual(stream.state_serial_no, 0)
-        self.assertTrue(self.db.stream_has_dist_trait(stream.id, 'timestamp', timestamp))
+        self.assertTrue(
+            self.db.stream_has_dist_trait(stream.id, 'timestamp', timestamp))
         self.assertTrue(self.db.stream_has_dist_trait(stream.id,
                                                       'instance_id',
                                                       'aaaa-bbbb-cccc-dddd'))
@@ -270,28 +307,34 @@ class TestDB(unittest.TestCase):
         stream = self.db.get_stream_by_id(1)
         event = dict(message_id='1234-5678-001',
                      event_type='test.thing.begin',
-                     timestamp=datetime.datetime(2014,8,1,10,20,45,453201),
+                     timestamp=datetime.datetime(2014, 8, 1, 10, 20, 45,
+                                                 453201),
                      instance_id='aaaa-bbbb-cccc-dddd',
                      memory_mb=1024,
                      test_weight=20112.42,
-                     launched_at=datetime.datetime(2014,7,1,2,30,45,453201),)
+                     launched_at=datetime.datetime(2014, 7, 1, 2, 30, 45,
+                                                   453201), )
 
         class MockTimestamp(object):
             pass
 
-        mock_expire_value = datetime.datetime(2014,8,2,12,12,12,12)
+        mock_expire_value = datetime.datetime(2014, 8, 2, 12, 12, 12, 12)
 
         def mock_time_expr(first, last):
-            self.assertEqual(first, datetime.datetime(2014,8,1,2,10,12,0))
-            self.assertEqual(last, datetime.datetime(2014,8,1,10,20,45,453201))
+            self.assertEqual(first,
+                             datetime.datetime(2014, 8, 1, 2, 10, 12, 0))
+            self.assertEqual(last,
+                             datetime.datetime(2014, 8, 1, 10, 20, 45, 453201))
             t = MockTimestamp()
             t.timestamp = mock_expire_value
             return t
 
         self.db.add_event_stream(stream, event, mock_time_expr)
         self.assertEqual(stream.expire_timestamp, mock_expire_value)
-        self.assertEqual(stream.first_event, datetime.datetime(2014,8,1,2,10,12,0))
-        self.assertEqual(stream.last_event, datetime.datetime(2014,8,1,10,20,45,453201))
+        self.assertEqual(stream.first_event,
+                         datetime.datetime(2014, 8, 1, 2, 10, 12, 0))
+        self.assertEqual(stream.last_event,
+                         datetime.datetime(2014, 8, 1, 10, 20, 45, 453201))
         events = self.db.get_stream_events(stream)
         self.assertEqual(len(events), 3)
         self.assertIn('1234-5678-001', [e['message_id'] for e in events])
@@ -313,17 +356,21 @@ class TestDB(unittest.TestCase):
         self.assertEqual(dist_traits['test_weight'], 3.1415)
         self.assertEqual(type(dist_traits['test_weight']), float)
         self.assertIn('launched_at', dist_traits)
-        self.assertEqual(dist_traits['launched_at'], datetime.datetime(2014,7,8,9,40,50,77777))
+        self.assertEqual(dist_traits['launched_at'],
+                         datetime.datetime(2014, 7, 8, 9, 40, 50, 77777))
         self.assertEqual(type(dist_traits['launched_at']), datetime.datetime)
         self.assertIn('timestamp', dist_traits)
         timestamp = dist_traits['timestamp']
         self.assertEqual(type(timestamp), timex.TimeRange)
-        self.assertEqual(timestamp.begin, datetime.datetime(2014,7,8,0,0,0,27))
-        self.assertEqual(timestamp.end, datetime.datetime(2014,7,9,0,0,0,27))
+        self.assertEqual(timestamp.begin,
+                         datetime.datetime(2014, 7, 8, 0, 0, 0, 27))
+        self.assertEqual(timestamp.end,
+                         datetime.datetime(2014, 7, 9, 0, 0, 0, 27))
 
     def test_stream_has_dist_trait(self):
-        #this mostly tests that the polymorphic trait comparisons are working.
-        dt = self.db.stream_has_dist_trait(1, 'instance_id', 'zzzz-xxxx-yyyy-wwww')
+        # this mostly tests that the polymorphic trait comparisons are working.
+        dt = self.db.stream_has_dist_trait(1, 'instance_id',
+                                           'zzzz-xxxx-yyyy-wwww')
         self.assertIsNotNone(dt)
         self.assertEqual(len(dt), 1)
         self.assertIn('instance_id', dt)
@@ -341,15 +388,15 @@ class TestDB(unittest.TestCase):
         self.assertIn('test_weight', dt)
         self.assertEqual(dt['test_weight'], 3.1415)
 
-        launched = datetime.datetime(2014,7,8,9,40,50,77777)
+        launched = datetime.datetime(2014, 7, 8, 9, 40, 50, 77777)
         dt = self.db.stream_has_dist_trait(1, 'launched_at', launched)
         self.assertIsNotNone(dt)
         self.assertEqual(len(dt), 1)
         self.assertIn('launched_at', dt)
-        self.assertEqual(dt['launched_at'],  launched)
+        self.assertEqual(dt['launched_at'], launched)
 
-        timestamp = timex.TimeRange(datetime.datetime(2014,7,8,0,0,0,27),
-                                    datetime.datetime(2014,7,9,0,0,0,27))
+        timestamp = timex.TimeRange(datetime.datetime(2014, 7, 8, 0, 0, 0, 27),
+                                    datetime.datetime(2014, 7, 9, 0, 0, 0, 27))
         dt = self.db.stream_has_dist_trait(1, 'timestamp', timestamp)
         self.assertIsNotNone(dt)
         self.assertEqual(len(dt), 1)
@@ -358,19 +405,22 @@ class TestDB(unittest.TestCase):
         self.assertEqual(dt['timestamp'].end, timestamp.end)
 
     def test_get_active_stream(self):
-        timestamp = timex.TimeRange(datetime.datetime(2014,7,8,0,0,0,27),
-                                    datetime.datetime(2014,7,9,0,0,0,27))
+        timestamp = timex.TimeRange(datetime.datetime(2014, 7, 8, 0, 0, 0, 27),
+                                    datetime.datetime(2014, 7, 9, 0, 0, 0, 27))
         dist_traits = dict(instance_id='zzzz-xxxx-yyyy-wwww',
                            memory_mb=4096,
                            test_weight=3.1415,
-                           launched_at=datetime.datetime(2014,7,8,9,40,50,77777),
+                           launched_at=datetime.datetime(2014, 7, 8, 9, 40, 50,
+                                                         77777),
                            timestamp=timestamp)
-        current_time = datetime.datetime(2014,8,2,1,0,0,02)
-        stream = self.db.get_active_stream('test_trigger', dist_traits, current_time)
+        current_time = datetime.datetime(2014, 8, 2, 1, 0, 0, 2)
+        stream = self.db.get_active_stream('test_trigger', dist_traits,
+                                           current_time)
         self.assertIsNotNone(stream)
         self.assertEqual(stream.id, 1)
-        current_time = datetime.datetime(2014,8,3,1,0,0,02)
-        stream = self.db.get_active_stream('test_trigger', dist_traits, current_time)
+        current_time = datetime.datetime(2014, 8, 3, 1, 0, 0, 2)
+        stream = self.db.get_active_stream('test_trigger', dist_traits,
+                                           current_time)
         self.assertIsNone(stream)
 
     def test_stream_ready_to_fire(self):
@@ -381,7 +431,7 @@ class TestDB(unittest.TestCase):
         self.assertEqual(stream.fire_timestamp, fire_time)
 
     def test_get_ready_streams_fire(self):
-        current_time = datetime.datetime(2014,8,12,0,0,0,42)
+        current_time = datetime.datetime(2014, 8, 12, 0, 0, 0, 42)
         streams = self.db.get_ready_streams(10, current_time)
         self.assertEqual(len(streams), 3)
         stream_ids = [stream.id for stream in streams]
@@ -389,18 +439,18 @@ class TestDB(unittest.TestCase):
         self.assertIn(4, stream_ids)
         self.assertIn(7, stream_ids)
 
-        current_time = datetime.datetime(2014,8,10,12,0,0,42)
+        current_time = datetime.datetime(2014, 8, 10, 12, 0, 0, 42)
         streams = self.db.get_ready_streams(10, current_time)
         self.assertEqual(len(streams), 1)
         stream_ids = [stream.id for stream in streams]
         self.assertIn(3, stream_ids)
 
-        current_time = datetime.datetime(2014,8,12,0,0,0,42)
+        current_time = datetime.datetime(2014, 8, 12, 0, 0, 0, 42)
         streams = self.db.get_ready_streams(1, current_time)
         self.assertEqual(len(streams), 1)
 
     def test_get_ready_streams_expire(self):
-        current_time = datetime.datetime(2014,8,17,0,0,0,42)
+        current_time = datetime.datetime(2014, 8, 17, 0, 0, 0, 42)
         streams = self.db.get_ready_streams(10, current_time, expire=True)
         self.assertEqual(len(streams), 5)
         stream_ids = [stream.id for stream in streams]
@@ -410,21 +460,22 @@ class TestDB(unittest.TestCase):
         self.assertIn(4, stream_ids)
         self.assertIn(8, stream_ids)
 
-        current_time = datetime.datetime(2014,8,10,12,0,0,42)
+        current_time = datetime.datetime(2014, 8, 10, 12, 0, 0, 42)
         streams = self.db.get_ready_streams(10, current_time, expire=True)
         self.assertEqual(len(streams), 2)
         stream_ids = [stream.id for stream in streams]
         self.assertIn(1, stream_ids)
         self.assertIn(2, stream_ids)
 
-        current_time = datetime.datetime(2014,8,17,0,0,0,42)
+        current_time = datetime.datetime(2014, 8, 17, 0, 0, 0, 42)
         streams = self.db.get_ready_streams(1, current_time, expire=True)
         self.assertEqual(len(streams), 1)
 
     def test_set_stream_state_sucess(self):
         stream = self.db.get_stream_by_id(1)
         old_serial = stream.state_serial_no
-        new_stream = self.db.set_stream_state(stream, models.StreamState.firing)
+        new_stream = self.db.set_stream_state(stream,
+                                              models.StreamState.firing)
         self.assertEqual(new_stream.state, models.StreamState.firing)
         self.assertEqual(new_stream.state_serial_no, old_serial + 1)
 
@@ -491,8 +542,8 @@ class TestDB(unittest.TestCase):
         self.assertEqual([{'count': 4}], count)
 
     def test_find_events_date_filter(self):
-        _from = datetime.datetime(2014,8,1,10)
-        _to = datetime.datetime(2014,8,1,16)
+        _from = datetime.datetime(2014, 8, 1, 10)
+        _to = datetime.datetime(2014, 8, 1, 16)
         events = self.db.find_events(from_datetime=_from, to_datetime=_to)
         self.assertEqual(2, len(events))
         msg_ids = [event['message_id'] for event in events]

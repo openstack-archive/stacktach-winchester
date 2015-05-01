@@ -1,11 +1,31 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import datetime
 import logging
-from stackdistiller import distiller, condenser
 import simport
+from stackdistiller import condenser
+from stackdistiller import distiller
 
-from winchester.config import ConfigManager, ConfigSection, ConfigItem
+from winchester.config import ConfigItem
+from winchester.config import ConfigManager
+from winchester.config import ConfigSection
+from winchester.db import DBInterface
+from winchester.db import DuplicateError
 from winchester import debugging
-from winchester.db import DBInterface, DuplicateError
 from winchester.definition import TriggerDefinition
 from winchester import time_sync as ts
 
@@ -43,10 +63,12 @@ class EventCondenser(condenser.CondenserBase):
 
     def _fix_time(self, dt):
         """Stackdistiller converts all times to utc.
+
         We store timestamps as utc datetime. However, the explicit
         UTC timezone on incoming datetimes causes comparison issues
         deep in sqlalchemy. We fix this by converting all datetimes
-        to naive utc timestamps"""
+        to naive utc timestamps
+        """
         if dt.tzinfo is not None:
             dt = dt.replace(tzinfo=None)
         return dt
@@ -67,36 +89,40 @@ class TriggerManager(object):
 
     @classmethod
     def config_description(cls):
-        return dict(config_path=ConfigItem(
-                            help="Path(s) to find additional config files",
-                                 multiple=True, default='.'),
-                    distiller_config=ConfigItem(required=True,
-                                       help="Name of distiller config file "
-                                       "describing what to extract from the "
-                                       "notifications"),
-                    distiller_trait_plugins=ConfigItem(
-                        help="dictionary of trait plugins to load "
-                             "for stackdistiller. Classes specified with "
-                             "simport syntax. See stackdistiller and "
-                             "simport docs for more info", default=dict()),
-                    time_sync_endpoint=ConfigItem(
-                        help="URL of time sync service for use with"
-                             " replying old events.",
-                             default=None),
-                    catch_all_notifications=ConfigItem(
-                        help="Store basic info for all notifications,"
-                             " even if not listed in distiller config",
-                             default=False),
-                    statistics_period=ConfigItem(
-                        help="Emit stats on event counts, etc every "
-                             "this many seconds", default=10),
-                    database=ConfigSection(help="Database connection info.",
-                            config_description=DBInterface.config_description()),
-                    trigger_definitions=ConfigItem(required=True,
-                               help="Name of trigger definitions file "
-                               "defining trigger conditions and what events to "
-                               "process for each stream"),
-               )
+        return dict(
+            config_path=ConfigItem(
+                help="Path(s) to find additional config files",
+                multiple=True, default='.'),
+            distiller_config=ConfigItem(
+                required=True,
+                help="Name of distiller config file "
+                     "describing what to extract from the "
+                     "notifications"),
+            distiller_trait_plugins=ConfigItem(
+                help="dictionary of trait plugins to load "
+                     "for stackdistiller. Classes specified with "
+                     "simport syntax. See stackdistiller and "
+                     "simport docs for more info", default=dict()),
+            time_sync_endpoint=ConfigItem(
+                help="URL of time sync service for use with"
+                     " replying old events.",
+                default=None),
+            catch_all_notifications=ConfigItem(
+                help="Store basic info for all notifications,"
+                     " even if not listed in distiller config",
+                default=False),
+            statistics_period=ConfigItem(
+                help="Emit stats on event counts, etc every "
+                     "this many seconds", default=10),
+            database=ConfigSection(
+                help="Database connection info.",
+                config_description=DBInterface.config_description()),
+            trigger_definitions=ConfigItem(
+                required=True,
+                help="Name of trigger definitions file "
+                     "defining trigger conditions and what events to "
+                     "process for each stream"),
+        )
 
     def __init__(self, config, db=None, stackdistiller=None, trigger_defs=None,
                  time_sync=None):
@@ -119,9 +145,10 @@ class TriggerManager(object):
             dist_config = config.load_file(config['distiller_config'])
             plugmap = self._load_plugins(config['distiller_trait_plugins'],
                                          distiller.DEFAULT_PLUGINMAP)
-            self.distiller = distiller.Distiller(dist_config,
-                                                 trait_plugin_map=plugmap,
-                                                 catchall=config['catch_all_notifications'])
+            self.distiller = distiller.Distiller(
+                dist_config,
+                trait_plugin_map=plugmap,
+                catchall=config['catch_all_notifications'])
         if trigger_defs is not None:
             self.trigger_definitions = trigger_defs
             for t in self.trigger_definitions:
@@ -129,8 +156,8 @@ class TriggerManager(object):
         else:
             defs = config.load_file(config['trigger_definitions'])
             self.trigger_definitions = [TriggerDefinition(conf,
-                                        self.debug_manager)
-                                            for conf in defs]
+                                                          self.debug_manager)
+                                        for conf in defs]
         self.saved_events = 0
         self.received = 0
         self.last_status = self.current_time()
@@ -144,13 +171,13 @@ class TriggerManager(object):
             try:
                 plugins[name] = simport.load(cls_string)
             except simport.ImportFailed as e:
-                log.error("Could not load plugin %s: Import failed. %s" % (
-                          name, e))
+                logger.error("Could not load plugin %s: Import failed. %s" % (
+                    name, e))
             except (simport.MissingMethodOrFunction,
                     simport.MissingModule,
                     simport.BadDirectory) as e:
-                log.error("Could not load plugin %s: Not found. %s" % (
-                          name, e))
+                logger.error("Could not load plugin %s: Not found. %s" % (
+                    name, e))
         return plugins
 
     def current_time(self):
@@ -185,9 +212,11 @@ class TriggerManager(object):
             else:
                 logger.warning("Received invalid event")
         else:
-            event_type = notification_body.get('event_type', '**no event_type**')
+            event_type = notification_body.get('event_type',
+                                               '**no event_type**')
             message_id = notification_body.get('message_id', '**no id**')
-            logger.info("Dropping unconverted %s notification %s" % (event_type, message_id))
+            logger.info("Dropping unconverted %s notification %s"
+                        % (event_type, message_id))
         return None
 
     def _log_statistics(self):
@@ -200,13 +229,15 @@ class TriggerManager(object):
         self.debug_manager.dump_debuggers()
 
     def _add_or_create_stream(self, trigger_def, event, dist_traits):
-        stream = self.db.get_active_stream(trigger_def.name, dist_traits, self.current_time())
+        stream = self.db.get_active_stream(trigger_def.name, dist_traits,
+                                           self.current_time())
         if stream is None:
             trigger_def.debugger.bump_counter("New stream")
-            stream = self.db.create_stream(trigger_def.name, event, dist_traits,
+            stream = self.db.create_stream(trigger_def.name, event,
+                                           dist_traits,
                                            trigger_def.expiration)
-            logger.debug("Created New stream %s for %s: distinguished by %s" % (
-                          stream.id, trigger_def.name, str(dist_traits)))
+            logger.debug("Created New stream %s for %s: distinguished by %s"
+                         % (stream.id, trigger_def.name, str(dist_traits)))
         else:
             self.db.add_event_stream(stream, event, trigger_def.expiration)
         return stream
@@ -216,7 +247,7 @@ class TriggerManager(object):
         self.db.stream_ready_to_fire(stream, timestamp)
         trigger_def.debugger.bump_counter("Ready to fire")
         logger.debug("Stream %s ready to fire at %s" % (
-                      stream.id, timestamp))
+            stream.id, timestamp))
 
     def add_event(self, event):
         if self.save_event(event):
@@ -224,13 +255,13 @@ class TriggerManager(object):
                 matched_criteria = trigger_def.match(event)
                 if matched_criteria:
                     dist_traits = trigger_def.get_distinguishing_traits(
-                                                    event, matched_criteria)
+                        event, matched_criteria)
                     stream = self._add_or_create_stream(trigger_def, event,
                                                         dist_traits)
                     trigger_def.debugger.bump_counter("Added events")
                     if stream.fire_timestamp is None:
                         if trigger_def.should_fire(self.db.get_stream_events(
-                                                   stream)):
+                                stream)):
                             self._ready_to_fire(stream, trigger_def)
 
     def add_notification(self, notification_body):

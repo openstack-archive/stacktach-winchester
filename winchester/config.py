@@ -1,3 +1,19 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import collections
 import logging
 import os
@@ -98,12 +114,13 @@ class ConfigManager(collections.Mapping):
             prefix = prefix + '/'
         for r in self._required:
             if r not in self:
-                msg = "Required Configuration setting %s%s is missing!" % (prefix,r)
+                msg = "Required Configuration setting %s%s is missing!" % (
+                    prefix, r)
                 logger.error(msg)
                 raise ConfigurationError(msg)
         for k, item in self.items():
             if hasattr(item, 'check_config'):
-                item.check_config(prefix="%s%s" % (prefix,k))
+                item.check_config(prefix="%s%s" % (prefix, k))
 
     @classmethod
     def _load_yaml_config(cls, config_data, filename="(unknown)"):
@@ -115,13 +132,13 @@ class ConfigManager(collections.Mapping):
             if hasattr(err, 'problem_mark'):
                 mark = err.problem_mark
                 errmsg = ("Invalid YAML syntax in Configuration file "
-                            "%(file)s at line: %(line)s, column: %(column)s."
+                          "%(file)s at line: %(line)s, column: %(column)s."
                           % dict(file=filename,
                                  line=mark.line + 1,
                                  column=mark.column + 1))
             else:
                 errmsg = ("YAML error reading Configuration file "
-                            "%(file)s"
+                          "%(file)s"
                           % dict(file=filename))
             logger.error(errmsg)
             raise
@@ -147,18 +164,19 @@ class ConfigManager(collections.Mapping):
             paths = ['.']
         if filetype is None:
             if (filename.lower().endswith('.yaml') or
-                filename.lower().endswith('.yml')):
+                    filename.lower().endswith('.yml')):
                 filetype = 'yaml'
             elif filename.lower().endswith('.json'):
                 filetype = 'json'
-            elif (filename.lower().endswith('.conf') or
-                filename.lower().endswith('.ini')):
+            elif (filename.lower().endswith('.conf')
+                  or filename.lower().endswith('.ini')):
                 filetype = 'ini'
             else:
                 filetype = 'yaml'
         data = cls._load_file(filename, paths)
         if data is None:
-            raise ConfigurationError("Cannot find or read config file: %s" % filename)
+            raise ConfigurationError(
+                "Cannot find or read config file: %s" % filename)
         try:
             loader = getattr(cls, "_load_%s_config" % filetype)
         except AttributeError:
@@ -166,6 +184,5 @@ class ConfigManager(collections.Mapping):
         return loader(data, filename=filename)
 
     def load_file(self, filename, filetype=None):
-        return self.load_config_file(filename, filetype, paths=self.config_paths)
-
-
+        return self.load_config_file(filename, filetype,
+                                     paths=self.config_paths)

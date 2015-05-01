@@ -1,14 +1,30 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from contextlib import contextmanager
 import logging
-import sqlalchemy
-from sqlalchemy import and_, or_
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm.exc import MultipleResultsFound
 
+import sqlalchemy
+from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import sessionmaker
+from winchester.config import ConfigItem
+from winchester.config import ConfigManager
 from winchester import models
-from winchester.config import ConfigManager, ConfigSection, ConfigItem
 
 
 logger = logging.getLogger(__name__)
@@ -42,16 +58,17 @@ def sessioned(func):
                 kw['session'] = session
                 retval = func(self, *args, **kw)
             return retval
+
     return with_session
 
 
 class DBInterface(object):
-
     @classmethod
     def config_description(cls):
-        return dict(url=ConfigItem(required=True,
-                                       help="Connection URL for database."),
-                   )
+        return dict(
+            url=ConfigItem(required=True,
+                           help="Connection URL for database."),
+        )
 
     def __init__(self, config):
         self.config = ConfigManager.wrap(config, self.config_description())
@@ -93,7 +110,7 @@ class DBInterface(object):
         except IntegrityError:
             session.rollback()
             raise DuplicateError("Duplicate unique value detected!")
-        except:
+        except Exception:
             session.rollback()
             raise
         finally:
@@ -102,7 +119,7 @@ class DBInterface(object):
     @sessioned
     def get_event_type(self, description, session=None):
         t = session.query(models.EventType).filter(
-                                models.EventType.desc == description).first()
+            models.EventType.desc == description).first()
         if t is None:
             t = models.EventType(description)
             session.add(t)
@@ -120,11 +137,11 @@ class DBInterface(object):
     @sessioned
     def get_event_by_message_id(self, message_id, session=None):
         try:
-            e = session.query(models.Event).\
+            e = session.query(models.Event). \
                 filter(models.Event.message_id == message_id).one()
         except NoResultFound:
             raise NoSuchEventError(
-                            "No event found with message_id %s!" % message_id)
+                "No event found with message_id %s!" % message_id)
         return e.as_dict
 
     @sessioned
@@ -137,10 +154,10 @@ class DBInterface(object):
         q = session.query(models.Event)
         if mark is not None:
             if mark.startswith('+'):
-                order_desc=False
+                order_desc = False
                 mark = mark[1:]
             if mark.startswith('-'):
-                order_desc=True
+                order_desc = True
                 mark = mark[1:]
             if mark:
                 if order_desc:
@@ -158,8 +175,8 @@ class DBInterface(object):
         if traits is not None:
             for name, val in traits.items():
                 q = q.filter(models.Event.traits.any(and_(
-                        models.Trait.name == name,
-                        models.Trait.value == val)))
+                    models.Trait.name == name,
+                    models.Trait.value == val)))
 
         if count:
             q = q.count()
@@ -185,7 +202,7 @@ class DBInterface(object):
     @sessioned
     def get_stream_by_id(self, stream_id, session=None):
         try:
-            s = session.query(models.Stream).\
+            s = session.query(models.Stream). \
                 filter(models.Stream.id == stream_id).one()
         except NoResultFound:
             raise NoSuchStreamError("No stream found with id %s!" % stream_id)
@@ -246,8 +263,8 @@ class DBInterface(object):
         q = q.filter(models.Stream.expire_timestamp > current_time)
         for name, val in dist_traits.items():
             q = q.filter(models.Stream.distinguished_by.any(and_(
-                    models.DistinguishingTrait.name == name,
-                    models.DistinguishingTrait.value == val)))
+                models.DistinguishingTrait.name == name,
+                models.DistinguishingTrait.value == val)))
         return q.first()
 
     @sessioned
@@ -257,12 +274,16 @@ class DBInterface(object):
         stream.fire_timestamp = timestamp
 
     @sessioned
-    def get_ready_streams(self, batch_size, current_time, expire=False, session=None):
+    def get_ready_streams(self, batch_size, current_time, expire=False,
+                          session=None):
         q = session.query(models.Stream)
         if expire:
-            states = (int(models.StreamState.active), int(models.StreamState.retry_expire))
+            states = (int(models.StreamState.active),
+                      int(models.StreamState.retry_expire))
         else:
-            states = (int(models.StreamState.active), int(models.StreamState.retry_fire))
+            states = (
+                int(models.StreamState.active),
+                int(models.StreamState.retry_fire))
 
         q = q.filter(models.Stream.state.in_(states))
         if expire:
@@ -275,7 +296,7 @@ class DBInterface(object):
     def set_stream_state(self, stream, state):
         serial = stream.state_serial_no
         stream_id = stream.id
-        #we do this in a separate session, as it needs to be atomic.
+        # we do this in a separate session, as it needs to be atomic.
         with self.in_session() as session:
             q = session.query(models.Stream)
             q = q.filter(models.Stream.id == stream_id)
@@ -289,7 +310,8 @@ class DBInterface(object):
         if stream.state == models.StreamState.error:
             return self.set_stream_state(stream, models.StreamState.retry_fire)
         if stream.state == models.StreamState.expire_error:
-            return self.set_stream_state(stream, models.StreamState.retry_expire)
+            return self.set_stream_state(stream,
+                                         models.StreamState.retry_expire)
         return stream
 
     @sessioned
@@ -304,10 +326,10 @@ class DBInterface(object):
         q = session.query(models.Stream)
         if mark is not None:
             if mark.startswith('+'):
-                order_desc=False
+                order_desc = False
                 mark = mark[1:]
             if mark.startswith('-'):
-                order_desc=True
+                order_desc = True
                 mark = mark[1:]
             if mark:
                 if order_desc:
@@ -327,8 +349,8 @@ class DBInterface(object):
         if distinguishing_traits is not None:
             for name, val in distinguishing_traits.items():
                 q = q.filter(models.Stream.distinguished_by.any(and_(
-                        models.DistinguishingTrait.name == name,
-                        models.DistinguishingTrait.value == val)))
+                    models.DistinguishingTrait.name == name,
+                    models.DistinguishingTrait.value == val)))
 
         if count:
             q = q.count()
@@ -349,7 +371,8 @@ class DBInterface(object):
             info = stream.as_dict
             info['_mark'] = mark_fmt % stream.id
             if include_events:
-                info['events'] = self.get_stream_events(stream, session=session)
+                info['events'] = self.get_stream_events(
+                    stream, session=session)
             stream_info.append(info)
         return stream_info
 
@@ -358,4 +381,3 @@ class DBInterface(object):
         if stream not in session:
             session.add(stream)
         session.delete(stream)
-

@@ -1,9 +1,25 @@
-import logging
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import collections
 import datetime
+import fnmatch
+import logging
 import six
 import timex
-import fnmatch
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +35,6 @@ def filter_event_timestamps(event):
 
 
 class Criterion(object):
-
     @classmethod
     def get_from_expression(cls, expression, trait_name):
         if isinstance(expression, collections.Mapping):
@@ -30,7 +45,7 @@ class Criterion(object):
             expr = expression[ctype]
             if ctype == 'int':
                 return NumericCriterion(expr, trait_name)
-            elif ctype =='float':
+            elif ctype == 'float':
                 return FloatCriterion(expr, trait_name)
             elif ctype == 'datetime':
                 return TimeCriterion(expr, trait_name)
@@ -42,7 +57,7 @@ class Criterion(object):
 
     def __init__(self, expr, trait_name):
         self.trait_name = trait_name
-        #match a constant
+        # match a constant
         self.op = '='
         self.value = expr
 
@@ -140,7 +155,8 @@ class Criteria(object):
         self.traits = dict()
         if 'traits' in config:
             for trait, criterion in config['traits'].items():
-                self.traits[trait] = Criterion.get_from_expression(criterion, trait)
+                self.traits[trait] = Criterion.get_from_expression(criterion,
+                                                                   trait)
 
     def included_type(self, event_type):
         return any(fnmatch.fnmatch(event_type, t) for t in self.included_types)
@@ -159,18 +175,18 @@ class Criteria(object):
             try:
                 t = self.timestamp(**filter_event_timestamps(event))
             except timex.TimexExpressionError:
-                # the event doesn't contain a trait referenced in the expression.
+                # the event doesn't contain a trait referenced
+                # in the expression.
                 return debug_group.mismatch("No timestamp trait")
             if event['timestamp'] not in t:
                 return debug_group.mismatch("Not time yet.")
         if not self.traits:
             return debug_group.match()
         return all(criterion.match(event, debug_group) for
-                       criterion in self.traits.values())
+                   criterion in self.traits.values())
 
 
 class TriggerDefinition(object):
-
     def __init__(self, config, debug_manager):
         if 'name' not in config:
             raise DefinitionError("Required field in trigger definition not "
@@ -181,8 +197,10 @@ class TriggerDefinition(object):
         for dt in self.distinguished_by:
             if isinstance(dt, collections.Mapping):
                 if len(dt) > 1:
-                    raise DefinitionError("Invalid distinguising expression "
-                        "%s. Only one trait allowed in an expression" % str(dt))
+                    raise DefinitionError(
+                        "Invalid distinguising expression "
+                        "%s. Only one trait allowed in an expression"
+                        % str(dt))
         self.fire_delay = config.get('fire_delay', 0)
         if 'expiration' not in config:
             raise DefinitionError("Required field in trigger definition not "
@@ -195,12 +213,12 @@ class TriggerDefinition(object):
                                   "'expire_pipeline' must be specified in a "
                                   "trigger definition.")
         if 'fire_criteria' not in config:
-            raise DefinitionError("Required criteria in trigger definition not "
-                                  "specified 'fire_criteria'")
+            raise DefinitionError("Required criteria in trigger definition "
+                                  "not specified 'fire_criteria'")
         self.fire_criteria = [Criteria(c) for c in config['fire_criteria']]
         if 'match_criteria' not in config:
-            raise DefinitionError("Required criteria in trigger definition not "
-                                  "specified 'match_criteria'")
+            raise DefinitionError("Required criteria in trigger definition "
+                                  "not specified 'match_criteria'")
         self.match_criteria = [Criteria(c) for c in config['match_criteria']]
         self.load_criteria = []
         if 'load_criteria' in config:
@@ -240,9 +258,11 @@ class TriggerDefinition(object):
                 d_expr = timex.parse(dt[trait_name])
             else:
                 trait_name = dt
-            event_trait_name = matching_criteria.map_distinguished_by.get(trait_name, trait_name)
+            event_trait_name = matching_criteria.map_distinguished_by.get(
+                trait_name, trait_name)
             if d_expr is not None:
-                dist_traits[trait_name] = d_expr(timestamp=event[event_trait_name])
+                dist_traits[trait_name] = d_expr(
+                    timestamp=event[event_trait_name])
             else:
                 dist_traits[trait_name] = event[event_trait_name]
         return dist_traits

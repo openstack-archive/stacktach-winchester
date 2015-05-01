@@ -1,25 +1,44 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import calendar
 from datetime import datetime
 from decimal import Decimal
-import calendar
+
 from enum import IntEnum
 
 import timex
 
-from sqlalchemy import event
-from sqlalchemy import and_, or_
-from sqlalchemy import literal_column
-from sqlalchemy import Column, Table, ForeignKey, Index, UniqueConstraint
-from sqlalchemy import Float, Boolean, Text, DateTime, Integer, String
-from sqlalchemy import cast, null, case
-from sqlalchemy.orm.interfaces import PropComparator
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy import and_
+from sqlalchemy import Column
 from sqlalchemy.dialects.mysql import DECIMAL
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.orm import composite
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy import Float
+from sqlalchemy import ForeignKey
+from sqlalchemy import Index
+from sqlalchemy import Integer
 from sqlalchemy.orm import backref
-from sqlalchemy.orm import relationship
 from sqlalchemy.orm.collections import attribute_mapped_collection
+from sqlalchemy.orm import composite
+from sqlalchemy.orm.interfaces import PropComparator
+from sqlalchemy.orm import relationship
+from sqlalchemy import String
+from sqlalchemy import Table
 from sqlalchemy.types import TypeDecorator, DATETIME
 
 
@@ -166,7 +185,8 @@ class PolymorphicVerticalProperty(object):
     @hybrid_property
     def value(self):
         if self.type not in self.ATTRIBUTE_MAP:
-            raise InvalidTraitType("Invalid trait type in db for %s: %s" % (self.name, self.type))
+            raise InvalidTraitType(
+                "Invalid trait type in db for %s: %s" % (self.name, self.type))
         attribute = self.ATTRIBUTE_MAP[self.type]
         if attribute is None:
             return None
@@ -180,7 +200,8 @@ class PolymorphicVerticalProperty(object):
     def value(self, value):
         datatype, value = self.get_type_value(value)
         if datatype not in self.ATTRIBUTE_MAP:
-            raise InvalidTraitType("Invalid trait type for %s: %s" % (self.name, datatype))
+            raise InvalidTraitType(
+                "Invalid trait type for %s: %s" % (self.name, datatype))
         attribute = self.ATTRIBUTE_MAP[datatype]
         self.type = int(datatype)
         if attribute is not None:
@@ -239,13 +260,13 @@ class Trait(PolymorphicVerticalProperty, Base):
                      Datatype.string: 't_string',
                      Datatype.int: 't_int',
                      Datatype.float: 't_float',
-                     Datatype.datetime: 't_datetime',}
+                     Datatype.datetime: 't_datetime', }
 
     t_string = Column(String(255), nullable=True, default=None)
     t_float = Column(Float, nullable=True, default=None)
     t_int = Column(Integer, nullable=True, default=None)
     t_datetime = Column(PreciseTimestamp(),
-                      nullable=True, default=None)
+                        nullable=True, default=None)
 
     def __repr__(self):
         return "<Trait(%s) %s=%s/%s/%s/%s on %s>" % (self.name,
@@ -286,9 +307,11 @@ class Event(ProxiedDictMixin, Base):
     event_type = relationship("EventType", backref=backref('event_type'))
 
     traits = relationship("Trait",
-                    collection_class=attribute_mapped_collection('name'))
+                          collection_class=attribute_mapped_collection('name'))
     _proxied = association_proxy("traits", "value",
-                            creator=lambda name, value: Trait(name=name, value=value))
+                                 creator=lambda name, value: Trait(
+                                     name=name,
+                                     value=value))
 
     @property
     def event_type_string(self):
@@ -303,24 +326,23 @@ class Event(ProxiedDictMixin, Base):
         return d
 
     def __init__(self, message_id, event_type, generated):
-
-         self.message_id = message_id
-         self.event_type = event_type
-         self.generated = generated
+        self.message_id = message_id
+        self.event_type = event_type
+        self.generated = generated
 
     def __repr__(self):
-        return "<Event %s ('Event : %s %s, Generated: %s')>" % (self.id,
-                                                              self.message_id,
-                                                              self.event_type,
-                                                              self.generated)
+        return "<Event %s ('Event : %s %s, Generated: %s')>" % (
+            self.id,
+            self.message_id,
+            self.event_type,
+            self.generated)
 
 
-stream_event_table = Table('streamevent', Base.metadata,
-        Column('stream_id', Integer, ForeignKey('stream.id'), primary_key=True),
-        Column('event_id', Integer,
-                ForeignKey('event.id'),
-                primary_key=True)
-        )
+stream_event_table = Table(
+    'streamevent', Base.metadata,
+    Column('stream_id', Integer, ForeignKey('stream.id'), primary_key=True),
+    Column('event_id', Integer, ForeignKey('event.id'), primary_key=True)
+)
 
 
 class Stream(ProxiedDictMixin, Base):
@@ -341,11 +363,15 @@ class Stream(ProxiedDictMixin, Base):
     state = Column(Integer, default=StreamState.active, nullable=False)
     state_serial_no = Column(Integer, default=0, nullable=False)
 
-    distinguished_by = relationship("DistinguishingTrait",
-                    cascade="save-update, merge, delete, delete-orphan",
-                    collection_class=attribute_mapped_collection('name'))
-    _proxied = association_proxy("distinguished_by", "value",
-                    creator=lambda name, value: DistinguishingTrait(name=name, value=value))
+    distinguished_by = relationship(
+        "DistinguishingTrait",
+        cascade="save-update, merge, delete, delete-orphan",
+        collection_class=attribute_mapped_collection(
+            'name'))
+    _proxied = association_proxy(
+        "distinguished_by", "value",
+        creator=lambda name, value: DistinguishingTrait(
+            name=name, value=value))
 
     events = relationship(Event, secondary=stream_event_table,
                           order_by=Event.generated)
@@ -365,10 +391,9 @@ class Stream(ProxiedDictMixin, Base):
                 'expire_timestamp': self.expire_timestamp,
                 'distinguishing_traits': self.distinguished_by_dict}
 
-
-
-    def __init__(self, name, first_event, last_event=None, expire_timestamp=None,
-                fire_timestamp=None, state=None, state_serial_no=None):
+    def __init__(self, name, first_event, last_event=None,
+                 expire_timestamp=None,
+                 fire_timestamp=None, state=None, state_serial_no=None):
         self.name = name
         self.first_event = first_event
         if last_event is None:
@@ -398,21 +423,22 @@ class DistinguishingTrait(PolymorphicVerticalProperty, Base):
     name = Column(String(100), primary_key=True)
     type = Column(Integer)
 
-
-    ATTRIBUTE_MAP = {Datatype.none:     None,
-                     Datatype.string:   'dt_string',
-                     Datatype.int:      'dt_int',
-                     Datatype.float:    'dt_float',
-                     Datatype.datetime: 'dt_datetime',
-                     Datatype.timerange:'dt_timerange',
-                    }
+    ATTRIBUTE_MAP = {
+        Datatype.none: None,
+        Datatype.string: 'dt_string',
+        Datatype.int: 'dt_int',
+        Datatype.float: 'dt_float',
+        Datatype.datetime: 'dt_datetime',
+        Datatype.timerange: 'dt_timerange',
+    }
 
     dt_string = Column(String(255), nullable=True, default=None)
     dt_float = Column(Float, nullable=True, default=None)
     dt_int = Column(Integer, nullable=True, default=None)
     dt_datetime = Column(PreciseTimestamp(),
-                      nullable=True, default=None)
-    dt_timerange_begin = Column(PreciseTimestamp(), nullable=True, default=None)
+                         nullable=True, default=None)
+    dt_timerange_begin = Column(
+        PreciseTimestamp(), nullable=True, default=None)
     dt_timerange_end = Column(PreciseTimestamp(), nullable=True, default=None)
 
     dt_timerange = composite(DBTimeRange, dt_timerange_begin, dt_timerange_end)
@@ -422,12 +448,13 @@ class DistinguishingTrait(PolymorphicVerticalProperty, Base):
         return {self.name: self.value}
 
     def __repr__(self):
-        return "<DistinguishingTrait(%s) %s=%s/%s/%s/%s/(%s to %s) on %s>" % (self.name,
-                                                             self.type,
-                                                             self.dt_string,
-                                                             self.dt_float,
-                                                             self.dt_int,
-                                                             self.dt_datetime,
-                                                             self.dt_timerange_begin,
-                                                             self.dt_timerange_end,
-                                                             self.stream_id)
+        return ("<DistinguishingTrait(%s) %s=%s/%s/%s/%s/(%s to %s) on %s>"
+                % (self.name,
+                   self.type,
+                   self.dt_string,
+                   self.dt_float,
+                   self.dt_int,
+                   self.dt_datetime,
+                   self.dt_timerange_begin,
+                   self.dt_timerange_end,
+                   self.stream_id))

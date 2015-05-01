@@ -75,7 +75,7 @@ class BaseDebugger(object):
 
 class NoOpDebugger(BaseDebugger):
     def __init__(self, *args, **kwargs):
-       self.noop_group = NoOpGroup()
+        self.noop_group = NoOpGroup()
 
     def reset(self):
         pass
@@ -136,8 +136,8 @@ class DebugManager(object):
     def dump_group(self, debugger, group_name):
         group = debugger.get_group(group_name)
         logger.info("%s Criteria: %d checks, %d passed" %
-                        (group._name,
-                         group._match + group._mismatch, group._match))
+                    (group._name,
+                     group._match + group._mismatch, group._match))
 
         if debugger.get_debug_level() > 1:
             for kv in group._reasons.items():

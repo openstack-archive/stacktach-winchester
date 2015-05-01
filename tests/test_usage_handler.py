@@ -1,3 +1,19 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest2 as unittest
 
 import datetime
@@ -95,8 +111,8 @@ class TestUsageHandler(unittest.TestCase):
     def test_extract_launched_at(self):
         with self.assertRaises(pipeline_handler.UsageException):
             self.handler._extract_launched_at({})
-        self.assertEquals("foo", self.handler._extract_launched_at(
-                                                    {'launched_at': 'foo'}))
+        self.assertEqual("foo", self.handler._extract_launched_at(
+            {'launched_at': 'foo'}))
 
     def test_extract_interesting(self):
         interesting = ["a", "b", "c"]
@@ -105,9 +121,9 @@ class TestUsageHandler(unittest.TestCase):
         e3 = {'event_type': 'c'}
         e4 = {'event_type': 'd'}
         e5 = {'event_type': 'e'}
-        self.assertEquals([e1, e2, e3],
-                          self.handler._extract_interesting_events(
-                            [e4, e1, e2, e3, e5], interesting))
+        self.assertEqual([e1, e2, e3],
+                         self.handler._extract_interesting_events(
+                             [e4, e1, e2, e3, e5], interesting))
 
     def test_verify_fields_no_match(self):
         exists = {'a': 1, 'b': 2, 'c': 3}
@@ -129,7 +145,7 @@ class TestUsageHandler(unittest.TestCase):
         with self.assertRaises(pipeline_handler.UsageException) as e:
             self.handler._confirm_delete({'deleted_at': 'now',
                                           'state': 'active'}, [], [])
-            self.assertEquals("U3", e.code)
+            self.assertEqual("U3", e.code)
 
         deleted_at = datetime.datetime(2014, 12, 31, 1, 0, 0)
         launched_at = datetime.datetime(2014, 12, 31, 2, 0, 0)
@@ -137,7 +153,7 @@ class TestUsageHandler(unittest.TestCase):
             self.handler._confirm_delete({'deleted_at': deleted_at,
                                           'launched_at': launched_at,
                                           'state': 'deleted'}, [], [])
-            self.assertEquals("U4", e.code)
+            self.assertEqual("U4", e.code)
 
         apb = datetime.datetime(2014, 12, 30, 0, 0, 0)
         ape = datetime.datetime(2014, 12, 31, 0, 0, 0)
@@ -149,7 +165,7 @@ class TestUsageHandler(unittest.TestCase):
                                           'audit_period_beginning': apb,
                                           'audit_period_ending': ape,
                                           'state': 'deleted'}, [], [])
-            self.assertEquals("U5", e.code)
+            self.assertEqual("U5", e.code)
 
         # Test the do-nothing scenario
         self.handler._confirm_delete({}, [], [])
@@ -157,11 +173,11 @@ class TestUsageHandler(unittest.TestCase):
     def test_confirm_delete_with_delete_events(self):
         with self.assertRaises(pipeline_handler.UsageException) as e:
             self.handler._confirm_delete({}, [{}], [])
-            self.assertEquals("U6", e.code)
+            self.assertEqual("U6", e.code)
 
         with self.assertRaises(pipeline_handler.UsageException) as e:
             self.handler._confirm_delete({'deleted_at': 'now'}, [{}, {}], [])
-            self.assertEquals("U7", e.code)
+            self.assertEqual("U7", e.code)
 
         with mock.patch.object(self.handler, "_verify_fields") as v:
             exists = {'deleted_at': 'now', 'state': 'deleted'}
@@ -181,53 +197,53 @@ class TestUsageHandler(unittest.TestCase):
                                                'audit_period_beginning': apb,
                                                'audit_period_ending': ape,
                                                'launched_at': launched_at})
-            self.assertEquals("U8", e.code)
+            self.assertEqual("U8", e.code)
 
     def test_process_block_exists(self):
-        exists = {'event_type':'compute.instance.exists', 'timestamp':'now',
-                  'instance_id':'inst'}
+        exists = {'event_type': 'compute.instance.exists', 'timestamp': 'now',
+                  'instance_id': 'inst'}
         self.handler.stream_id = 123
-        with mock.patch.object(self.handler, "_do_checks") as c:
+        with mock.patch.object(self.handler, "_do_checks"):
             events = self.handler._process_block([], exists)
-            self.assertEquals(1, len(events))
+            self.assertEqual(1, len(events))
             f = events[0]
-            self.assertEquals("compute.instance.exists.verified",
-                              f['event_type'])
-            self.assertEquals("now", f['timestamp'])
-            self.assertEquals(123, f['stream_id'])
-            self.assertEquals("inst", f['payload']['instance_id'])
-            self.assertEquals("None", f['error'])
+            self.assertEqual("compute.instance.exists.verified",
+                             f['event_type'])
+            self.assertEqual("now", f['timestamp'])
+            self.assertEqual(123, f['stream_id'])
+            self.assertEqual("inst", f['payload']['instance_id'])
+            self.assertEqual("None", f['error'])
             self.assertIsNone(f['error_code'])
 
     def test_process_block_bad(self):
-        exists = {'event_type': 'compute.instance.exists', 'timestamp':'now',
-                'instance_id':'inst'}
+        exists = {'event_type': 'compute.instance.exists', 'timestamp': 'now',
+                  'instance_id': 'inst'}
         self.handler.stream_id = 123
         with mock.patch.object(self.handler, "_do_checks") as c:
             c.side_effect = pipeline_handler.UsageException("UX", "Error")
             events = self.handler._process_block([], exists)
-            self.assertEquals(1, len(events))
+            self.assertEqual(1, len(events))
             f = events[0]
-            self.assertEquals("compute.instance.exists.failed",
-                              f['event_type'])
-            self.assertEquals("now", f['timestamp'])
-            self.assertEquals(123, f['stream_id'])
-            self.assertEquals("inst", f['payload']['instance_id'])
-            self.assertEquals("Error", f['error'])
-            self.assertEquals("UX", f['error_code'])
+            self.assertEqual("compute.instance.exists.failed",
+                             f['event_type'])
+            self.assertEqual("now", f['timestamp'])
+            self.assertEqual(123, f['stream_id'])
+            self.assertEqual("inst", f['payload']['instance_id'])
+            self.assertEqual("Error", f['error'])
+            self.assertEqual("UX", f['error_code'])
 
     def test_process_block_warnings(self):
         self.handler.warnings = ['one', 'two']
         exists = {'event_type': 'compute.instance.exists',
-                  'timestamp':'now', 'instance_id':'inst'}
+                  'timestamp': 'now', 'instance_id': 'inst'}
         self.handler.stream_id = 123
-        with mock.patch.object(self.handler, "_do_checks") as c:
+        with mock.patch.object(self.handler, "_do_checks"):
             events = self.handler._process_block([], exists)
-            self.assertEquals(2, len(events))
-            self.assertEquals("compute.instance.exists.warnings",
-                              events[0]['event_type'])
-            self.assertEquals("compute.instance.exists.verified",
-                              events[1]['event_type'])
+            self.assertEqual(2, len(events))
+            self.assertEqual("compute.instance.exists.warnings",
+                             events[0]['event_type'])
+            self.assertEqual("compute.instance.exists.verified",
+                             events[1]['event_type'])
 
     @mock.patch.object(pipeline_handler.UsageHandler, '_confirm_launched_at')
     @mock.patch.object(pipeline_handler.UsageHandler, '_get_core_fields')
@@ -279,17 +295,17 @@ class TestUsageHandler(unittest.TestCase):
     def test_handle_events_no_data(self):
         env = {'stream_id': 123}
         events = self.handler.handle_events([], env)
-        self.assertEquals(0, len(events))
+        self.assertEqual(0, len(events))
 
     def test_handle_events_no_exists(self):
         env = {'stream_id': 123}
         raw = [{'event_type': 'foo'}]
         events = self.handler.handle_events(raw, env)
-        self.assertEquals(1, len(events))
+        self.assertEqual(1, len(events))
         notifications = env['usage_notifications']
-        self.assertEquals(1, len(notifications))
-        self.assertEquals("compute.instance.exists.failed",
-                          notifications[0]['event_type'])
+        self.assertEqual(1, len(notifications))
+        self.assertEqual("compute.instance.exists.failed",
+                         notifications[0]['event_type'])
 
     @mock.patch.object(pipeline_handler.UsageHandler, '_process_block')
     def test_handle_events_exists(self, pb):
@@ -297,20 +313,21 @@ class TestUsageHandler(unittest.TestCase):
         raw = [{'event_type': 'foo'},
                {'event_type': 'compute.instance.exists'}]
         events = self.handler.handle_events(raw, env)
-        self.assertEquals(2, len(events))
+        self.assertEqual(2, len(events))
         self.assertTrue(pb.called)
 
     @mock.patch.object(pipeline_handler.UsageHandler, '_process_block')
     def test_handle_events_dangling(self, pb):
         env = {'stream_id': 123}
-        raw = [{'event_type': 'foo'},
-               {'event_type': 'compute.instance.exists'},
-               {'event_type': 'foo'},
-               ]
+        raw = [
+            {'event_type': 'foo'},
+            {'event_type': 'compute.instance.exists'},
+            {'event_type': 'foo'},
+        ]
         events = self.handler.handle_events(raw, env)
-        self.assertEquals(3, len(events))
+        self.assertEqual(3, len(events))
         notifications = env['usage_notifications']
-        self.assertEquals(1, len(notifications))
-        self.assertEquals("compute.instance.exists.failed",
-                          notifications[0]['event_type'])
+        self.assertEqual(1, len(notifications))
+        self.assertEqual("compute.instance.exists.failed",
+                         notifications[0]['event_type'])
         self.assertTrue(pb.called)

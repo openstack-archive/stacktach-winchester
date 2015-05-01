@@ -1,3 +1,19 @@
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest2 as unittest
 
 import mock
@@ -13,8 +29,8 @@ class TestDebugManager(unittest.TestCase):
 
     def test_get_debugger_none(self):
         debugger = self.debug_manager.get_debugger(None)
-        self.assertEquals("n/a", debugger._name)
-        self.assertEquals(2, debugger._debug_level)
+        self.assertEqual("n/a", debugger._name)
+        self.assertEqual(2, debugger._debug_level)
 
     def test_get_debugger_off(self):
         tdef = mock.MagicMock(name="tdef")
@@ -22,11 +38,11 @@ class TestDebugManager(unittest.TestCase):
         tdef.debug_level = 0
         debugger = self.debug_manager.get_debugger(tdef)
         self.assertTrue(isinstance(debugger, debugging.NoOpDebugger))
-        self.assertEquals(debugger,
-                          self.debug_manager._debuggers['my_trigger'])
+        self.assertEqual(debugger,
+                         self.debug_manager._debuggers['my_trigger'])
 
         debugger2 = self.debug_manager.get_debugger(tdef)
-        self.assertEquals(debugger, debugger2)
+        self.assertEqual(debugger, debugger2)
 
     def test_get_debugger_on(self):
         tdef = mock.MagicMock(name="tdef")
@@ -34,11 +50,11 @@ class TestDebugManager(unittest.TestCase):
         tdef.debug_level = 1
         debugger = self.debug_manager.get_debugger(tdef)
         self.assertTrue(isinstance(debugger, debugging.DetailedDebugger))
-        self.assertEquals(debugger,
-                          self.debug_manager._debuggers['my_trigger'])
+        self.assertEqual(debugger,
+                         self.debug_manager._debuggers['my_trigger'])
 
         debugger2 = self.debug_manager.get_debugger(tdef)
-        self.assertEquals(debugger, debugger2)
+        self.assertEqual(debugger, debugger2)
 
     def test_dump_group_level1(self):
         debugger = mock.MagicMock(name="debugger")
@@ -52,7 +68,7 @@ class TestDebugManager(unittest.TestCase):
             self.debug_manager.dump_group(debugger, "my_group")
 
             log.info.assert_called_once_with(
-                                "my_group Criteria: 3 checks, 1 passed")
+                "my_group Criteria: 3 checks, 1 passed")
 
     def test_dump_group_level2(self):
         debugger = mock.MagicMock(name="debugger")
@@ -66,9 +82,10 @@ class TestDebugManager(unittest.TestCase):
         with mock.patch.object(debugging, "logger") as log:
             self.debug_manager.dump_group(debugger, "my_group")
 
-            self.assertEquals(log.info.call_args_list,
-                                [mock.call("my_group Criteria: 3 checks, 1 passed"),
-                                 mock.call(" - foo = 12")])
+            self.assertEqual(log.info.call_args_list,
+                             [mock.call(
+                                 "my_group Criteria: 3 checks, 1 passed"),
+                              mock.call(" - foo = 12")])
 
     def test_dump_counters(self):
         debugger = mock.MagicMock(name="debugger")
@@ -96,49 +113,51 @@ class TestDebugManager(unittest.TestCase):
             with mock.patch.object(self.debug_manager, "dump_group") as grp:
                 with mock.patch.object(debugging, "logger") as log:
                     self.debug_manager.dump_debuggers()
-                    self.assertEquals(log.info.call_args_list,
-                      [mock.call("---- Trigger Definition: my_debugger ----"),
-                       mock.call("----------------------------")])
+                    self.assertEqual(
+                        log.info.call_args_list,
+                        [mock.call(
+                            "---- Trigger Definition: my_debugger ----"),
+                         mock.call(
+                             "----------------------------")])
                 grp.assert_called_once_with(debugger, "my_group")
             ctr.assert_called_once_with(debugger)
         debugger.reset.assert_called_once_with()
 
 
 class TestDetailedDebugger(unittest.TestCase):
-
     def setUp(self):
         super(TestDetailedDebugger, self).setUp()
         self.debugger = debugging.DetailedDebugger("my_debugger", 2)
 
     def test_constructor(self):
         with mock.patch("winchester.debugging.DetailedDebugger.reset") \
-                                                                as reset:
-            d = debugging.DetailedDebugger("my_debugger", 2)
+                as reset:
+            debugging.DetailedDebugger("my_debugger", 2)
             reset.assert_called_once_with()
 
-        self.assertEquals(self.debugger._name, "my_debugger")
-        self.assertEquals(self.debugger._debug_level, 2)
+        self.assertEqual(self.debugger._name, "my_debugger")
+        self.assertEqual(self.debugger._debug_level, 2)
 
     def test_reset(self):
-        self.assertEquals(self.debugger._groups, {})
-        self.assertEquals(self.debugger._counters, {})
+        self.assertEqual(self.debugger._groups, {})
+        self.assertEqual(self.debugger._counters, {})
 
     def test_get_group(self):
-        self.assertEquals(self.debugger._groups, {})
+        self.assertEqual(self.debugger._groups, {})
         g = self.debugger.get_group("foo")
-        self.assertEquals(g._name, "foo")
+        self.assertEqual(g._name, "foo")
         self.assertTrue(self.debugger._groups['foo'])
 
     def test_bump_counter(self):
-        self.assertEquals(self.debugger._counters, {})
+        self.assertEqual(self.debugger._counters, {})
         self.debugger.bump_counter("foo")
-        self.assertEquals(self.debugger._counters['foo'], 1)
+        self.assertEqual(self.debugger._counters['foo'], 1)
 
         self.debugger.bump_counter("foo", 2)
-        self.assertEquals(self.debugger._counters['foo'], 3)
+        self.assertEqual(self.debugger._counters['foo'], 3)
 
     def test_get_debug_level(self):
-        self.assertEquals(self.debugger.get_debug_level(), 2)
+        self.assertEqual(self.debugger.get_debug_level(), 2)
 
 
 class TestNoOpDebugger(unittest.TestCase):
@@ -151,14 +170,14 @@ class TestNoOpDebugger(unittest.TestCase):
 
     def test_get_group(self):
         g = self.debugger.get_group("foo")
-        self.assertEquals(g, self.debugger.noop_group)
+        self.assertEqual(g, self.debugger.noop_group)
 
     def test_bump_counter(self):
         self.debugger.bump_counter("foo")
         self.debugger.bump_counter("foo", 2)
 
     def test_get_debug_level(self):
-        self.assertEquals(self.debugger.get_debug_level(), 0)
+        self.assertEqual(self.debugger.get_debug_level(), 0)
 
 
 class TestGroup(unittest.TestCase):
@@ -167,40 +186,40 @@ class TestGroup(unittest.TestCase):
         self.group = debugging.Group("my_group")
 
     def test_constructor(self):
-        self.assertEquals("my_group", self.group._name)
-        self.assertEquals(0, self.group._match)
-        self.assertEquals(0, self.group._mismatch)
-        self.assertEquals({}, self.group._reasons)
+        self.assertEqual("my_group", self.group._name)
+        self.assertEqual(0, self.group._match)
+        self.assertEqual(0, self.group._mismatch)
+        self.assertEqual({}, self.group._reasons)
 
     def test_match(self):
         self.assertTrue(self.group.match())
-        self.assertEquals(1, self.group._match)
+        self.assertEqual(1, self.group._match)
 
     def test_mismatch(self):
         self.assertFalse(self.group.mismatch("reason"))
-        self.assertEquals(1, self.group._mismatch)
-        self.assertEquals(1, self.group._reasons['reason'])
+        self.assertEqual(1, self.group._mismatch)
+        self.assertEqual(1, self.group._reasons['reason'])
 
     def test_check(self):
         self.assertTrue(self.group.check(True, "reason"))
-        self.assertEquals(1, self.group._match)
-        self.assertEquals(0, self.group._mismatch)
-        self.assertEquals({}, self.group._reasons)
+        self.assertEqual(1, self.group._match)
+        self.assertEqual(0, self.group._mismatch)
+        self.assertEqual({}, self.group._reasons)
 
         self.assertTrue(self.group.check(True, "reason"))
-        self.assertEquals(2, self.group._match)
-        self.assertEquals(0, self.group._mismatch)
-        self.assertEquals({}, self.group._reasons)
+        self.assertEqual(2, self.group._match)
+        self.assertEqual(0, self.group._mismatch)
+        self.assertEqual({}, self.group._reasons)
 
         self.assertFalse(self.group.check(False, "reason"))
-        self.assertEquals(2, self.group._match)
-        self.assertEquals(1, self.group._mismatch)
-        self.assertEquals(1, self.group._reasons['reason'])
+        self.assertEqual(2, self.group._match)
+        self.assertEqual(1, self.group._mismatch)
+        self.assertEqual(1, self.group._reasons['reason'])
 
         self.assertFalse(self.group.check(False, "reason"))
-        self.assertEquals(2, self.group._match)
-        self.assertEquals(2, self.group._mismatch)
-        self.assertEquals(2, self.group._reasons['reason'])
+        self.assertEqual(2, self.group._match)
+        self.assertEqual(2, self.group._mismatch)
+        self.assertEqual(2, self.group._reasons['reason'])
 
 
 class TestNoOpGroup(unittest.TestCase):

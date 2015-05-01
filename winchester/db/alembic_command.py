@@ -1,4 +1,22 @@
-from alembic import util, command, config
+# Copyright (c) 2014 Dark Secret Software Inc.
+# Copyright (c) 2015 Rackspace
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from alembic import command
+from alembic import config
+from alembic import util
 import argparse
 import inspect
 
@@ -16,35 +34,34 @@ class AlembicCommandLine(object):
         if allowed_commands is not None:
             self.allowed_commands = allowed_commands
 
-
         self.parser = self.generate_options()
 
     def add_command_options(self, parser, positional, kwargs):
         if 'template' in kwargs:
             parser.add_argument("-t", "--template",
-                            default='generic',
-                            type=str,
-                            help="Setup template for use with 'init'")
+                                default='generic',
+                                type=str,
+                                help="Setup template for use with 'init'")
         if 'message' in kwargs:
             parser.add_argument("-m", "--message",
-                            type=str,
-                            help="Message string to use with 'revision'")
+                                type=str,
+                                help="Message string to use with 'revision'")
         if 'sql' in kwargs:
             parser.add_argument("--sql",
-                            action="store_true",
-                            help="Don't emit SQL to database - dump to "
-                                    "standard output/file instead")
+                                action="store_true",
+                                help="Don't emit SQL to database - dump to "
+                                     "standard output/file instead")
         if 'tag' in kwargs:
             parser.add_argument("--tag",
-                            type=str,
-                            help="Arbitrary 'tag' name - can be used by "
-                            "custom env.py scripts.")
+                                type=str,
+                                help="Arbitrary 'tag' name - can be used by "
+                                     "custom env.py scripts.")
         if 'autogenerate' in kwargs:
             parser.add_argument("--autogenerate",
-                            action="store_true",
-                            help="Populate revision script with candidate "
-                                "migration operations, based on comparison "
-                                "of database to model.")
+                                action="store_true",
+                                help="Populate revision script with "
+                                     "candidate migration operations, based "
+                                     "on comparison of database to model.")
         # "current" command
         if 'head_only' in kwargs:
             parser.add_argument("--head-only",
@@ -57,7 +74,6 @@ class AlembicCommandLine(object):
                                 action="store",
                                 help="Specify a revision range; "
                                 "format is [start]:[end]")
-
 
         positional_help = {
             'directory': "location of scripts directory",
@@ -96,11 +112,11 @@ class AlembicCommandLine(object):
         cmds = []
         for fn in [getattr(command, n) for n in dir(command)]:
             if (inspect.isfunction(fn) and
-                fn.__name__[0] != '_' and
-                fn.__module__ == 'alembic.command'):
+                    fn.__name__[0] != '_' and
+                    fn.__module__ == 'alembic.command'):
 
                 if (self.allowed_commands and
-                    fn.__name__ not in self.allowed_commands):
+                        fn.__name__ not in self.allowed_commands):
                     continue
 
                 spec = inspect.getargspec(fn)
@@ -123,7 +139,7 @@ class AlembicCommandLine(object):
 
         try:
             fn(config, *[getattr(options, k) for k in positional],
-                        **dict((k, getattr(options, k)) for k in kwarg))
+               **dict((k, getattr(options, k)) for k in kwarg))
         except util.CommandError as e:
             util.err(str(e))
 
