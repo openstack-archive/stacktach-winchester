@@ -327,7 +327,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.return_value = stream
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.fire_pipeline = 'test_fire_pipeline'
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pipeline_config = mock.MagicMock(name='pipeline_config')
         pm.pipeline_config = dict(test_fire_pipeline=pipeline_config)
         pm._error_stream = mock.MagicMock(name='_error_stream')
@@ -354,7 +354,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.side_effect = winch_db.LockError('locked!')
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.fire_pipeline = 'test_fire_pipeline'
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pipeline_config = mock.MagicMock(name='pipeline_config')
         pm.pipeline_config = dict(test_fire_pipeline=pipeline_config)
         pm._error_stream = mock.MagicMock(name='_error_stream')
@@ -379,7 +379,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.return_value = stream
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.fire_pipeline = None
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pm._error_stream = mock.MagicMock(name='_error_stream')
         pm._complete_stream = mock.MagicMock(name='_complete_stream')
         pm._run_pipeline = mock.MagicMock(name='_run_pipeline')
@@ -402,7 +402,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.return_value = stream
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.fire_pipeline = 'test_fire_pipeline'
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pipeline_config = mock.MagicMock(name='pipeline_config')
         pm.pipeline_config = dict(test_fire_pipeline=pipeline_config)
         pm._error_stream = mock.MagicMock(name='_error_stream')
@@ -429,7 +429,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.return_value = stream
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.expire_pipeline = 'test_fire_pipeline'
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pipeline_config = mock.MagicMock(name='pipeline_config')
         pm.pipeline_config = dict(test_fire_pipeline=pipeline_config)
         pm._error_stream = mock.MagicMock(name='_error_stream')
@@ -456,7 +456,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.side_effect = winch_db.LockError('locked!')
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.expire_pipeline = 'test_fire_pipeline'
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pipeline_config = mock.MagicMock(name='pipeline_config')
         pm.pipeline_config = dict(test_fire_pipeline=pipeline_config)
         pm._expire_error_stream = mock.MagicMock(name='_expire_error_stream')
@@ -481,7 +481,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.return_value = stream
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.expire_pipeline = None
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pm._expire_error_stream = mock.MagicMock(name='_expire_error_stream')
         pm._complete_stream = mock.MagicMock(name='_complete_stream')
         pm._run_pipeline = mock.MagicMock(name='_run_pipeline')
@@ -504,7 +504,7 @@ class TestPipelineManager(unittest.TestCase):
         pm.db.set_stream_state.return_value = stream
         trigger_def = mock.MagicMock(name='trigger_def')
         trigger_def.expire_pipeline = 'test_fire_pipeline'
-        pm.trigger_map = dict(test=trigger_def)
+        pm.trigger_manager.trigger_map = dict(test=trigger_def)
         pipeline_config = mock.MagicMock(name='pipeline_config')
         pm.pipeline_config = dict(test_fire_pipeline=pipeline_config)
         pm._expire_error_stream = mock.MagicMock(name='_expire_error_stream')
@@ -529,7 +529,7 @@ class TestPipelineManager(unittest.TestCase):
         stream = mock.MagicMock(name='stream')
         stream.name = "my_stream"
         tdef = mock.MagicMock(name='tdef')
-        pm.trigger_map['my_stream'] = tdef
+        pm.trigger_manager.trigger_map['my_stream'] = tdef
         pm.expire_stream = mock.MagicMock(name='expire_stream')
         pm.fire_stream = mock.MagicMock(name='fire_stream')
         pm.current_time = mock.MagicMock(name='current_time')
