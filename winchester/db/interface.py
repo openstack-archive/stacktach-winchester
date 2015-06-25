@@ -19,7 +19,9 @@ import logging
 
 import sqlalchemy
 from sqlalchemy import and_
+from sqlalchemy.exc import DisconnectionError
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
 from winchester.config import ConfigItem
@@ -31,6 +33,10 @@ logger = logging.getLogger(__name__)
 
 ENGINES = dict()
 SESSIONMAKERS = dict()
+
+
+class DatabaseConnectionError(models.DBException):
+    pass
 
 
 class DuplicateError(models.DBException):
@@ -110,6 +116,11 @@ class DBInterface(object):
         except IntegrityError:
             session.rollback()
             raise DuplicateError("Duplicate unique value detected!")
+        except (OperationalError, DisconnectionError):
+            session.rollback()
+            self.close()
+            logger.warn("Database Connection Lost!")
+            raise DatabaseConnectionError()
         except Exception:
             session.rollback()
             raise

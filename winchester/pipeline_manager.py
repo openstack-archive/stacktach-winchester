@@ -22,6 +22,7 @@ import time
 
 from winchester.config import ConfigItem
 from winchester.config import ConfigManager
+from winchester.db import DatabaseConnectionError
 from winchester.db import DBInterface
 from winchester.db import LockError
 from winchester.definition import TriggerDefinition
@@ -396,16 +397,25 @@ class PipelineManager(object):
 
     def run(self):
         while True:
-            fire_ct = self.process_ready_streams(
-                self.pipeline_worker_batch_size)
-            expire_ct = self.process_ready_streams(
-                self.pipeline_worker_batch_size,
-                expire=True)
+            try:
+                fire_ct = self.process_ready_streams(
+                    self.pipeline_worker_batch_size)
+                expire_ct = self.process_ready_streams(
+                    self.pipeline_worker_batch_size,
+                    expire=True)
 
-            if ((self.current_time() - self.last_status).seconds
-                    > self.statistics_period):
-                self._log_statistics()
+                if ((self.current_time() - self.last_status).seconds
+                        > self.statistics_period):
+                    self._log_statistics()
 
-            if not fire_ct and not expire_ct:
-                logger.debug("No streams to fire or expire. Sleeping...")
-                time.sleep(self.pipeline_worker_delay)
+                if not fire_ct and not expire_ct:
+                    logger.debug("No streams to fire or expire. Sleeping...")
+                    time.sleep(self.pipeline_worker_delay)
+            except DatabaseConnectionError:
+                logger.warn("Database Connection went away. Reconnecting...")
+                time.sleep(5)
+                # DB layer will reconnect automatically. We just need to
+                # retry the operation. (mdragon)
+            except Exception:
+                logger.exception("Unknown Error in pipeline worker!")
+                raise
