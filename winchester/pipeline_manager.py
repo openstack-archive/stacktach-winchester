@@ -19,6 +19,7 @@ import random
 import simport
 import six
 import time
+import timex
 
 from winchester.config import ConfigItem
 from winchester.config import ConfigManager
@@ -145,6 +146,16 @@ class PipelineManager(object):
                 help="Delete successfully proccessed "
                      "streams when finished?",
                 default=True),
+            trim_events=ConfigItem(
+                help="Delete events older than a configurable time.",
+                default=False),
+            trim_events_age=ConfigItem(
+                help="Delete events older than this (timex expr).",
+                default="$timestamp - 14d"),
+            trim_events_batch_size=ConfigItem(
+                help="Maximum number of events for pipeline "
+                     "worker(s) to trim at a time",
+                default=100),
         ))
         return configs
 
@@ -208,6 +219,15 @@ class PipelineManager(object):
         self.pipeline_worker_delay = config['pipeline_worker_delay']
         self.statistics_period = config['statistics_period']
         self.purge_completed_streams = config['purge_completed_streams']
+        self.trim_events = config['trim_events']
+        self.trim_events_batch_size = config['trim_events_batch_size']
+        try:
+            self.trim_events_age = timex.parse(str(config['trim_events_age']))
+        except timex.TimexError:
+            logger.error("Invalid trim event expression: %s Event trimming "
+                         "disabled." % config['trim_events_age'])
+            self.trim_events_age = None
+            self.trim_events = False
         self.streams_fired = 0
         self.streams_expired = 0
         self.streams_loaded = 0
@@ -395,6 +415,14 @@ class PipelineManager(object):
         self.streams_loaded += stream_ct
         return stream_ct
 
+    def process_trim_events(self):
+        trim_date = self.trim_events_age().timestamp
+        event_ids = self.db.find_older_events(trim_date,
+                                              self.trim_events_batch_size)
+        logger.debug("Trimming %s old events" % len(event_ids))
+        self.db.purge_events(event_ids)
+        return len(event_ids)
+
     def run(self):
         while True:
             try:
@@ -404,11 +432,15 @@ class PipelineManager(object):
                     self.pipeline_worker_batch_size,
                     expire=True)
 
+                trim_ct = 0
+                if self.trim_events:
+                    trim_ct = self.process_trim_events()
+
                 if ((self.current_time() - self.last_status).seconds
                         > self.statistics_period):
                     self._log_statistics()
 
-                if not fire_ct and not expire_ct:
+                if not fire_ct and not expire_ct and not trim_ct:
                     logger.debug("No streams to fire or expire. Sleeping...")
                     time.sleep(self.pipeline_worker_delay)
             except DatabaseConnectionError:

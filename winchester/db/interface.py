@@ -24,6 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import select
 from winchester.config import ConfigItem
 from winchester.config import ConfigManager
 from winchester import models
@@ -154,6 +155,33 @@ class DBInterface(object):
             raise NoSuchEventError(
                 "No event found with message_id %s!" % message_id)
         return e.as_dict
+
+    @sessioned
+    def find_older_events(self, purge_date, batchsize, session=None):
+        # For speed, we do this below the ORM layer. (mdragon)
+        conn = session.connection()
+        event_table = models.Event.__table__
+        q = select([event_table.c.id])
+        q = q.where(event_table.c.generated < purge_date)
+        q = q.order_by(event_table.c.generated.asc())
+        q = q.limit(batchsize)
+        return [r[0] for r in conn.execute(q).fetchall()]
+
+    @sessioned
+    def purge_events(self, event_ids, session=None):
+        # For speed, we do this below the ORM layer. (mdragon)
+        conn = session.connection()
+        dq = models.stream_event_table.delete()
+        dq = dq.where(models.stream_event_table.c.event_id.in_(event_ids))
+        conn.execute(dq)
+        trait_table = models.Trait.__table__
+        dq = trait_table.delete()
+        dq = dq.where(trait_table.c.event_id.in_(event_ids))
+        conn.execute(dq)
+        event_table = models.Event.__table__
+        dq = event_table.delete()
+        dq = dq.where(event_table.c.id.in_(event_ids))
+        conn.execute(dq)
 
     @sessioned
     def find_events(self, from_datetime=None, to_datetime=None,

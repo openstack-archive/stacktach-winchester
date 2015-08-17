@@ -531,6 +531,21 @@ class TestDB(unittest.TestCase):
         self.assertEqual(streams[0]['id'], 3)
         self.assertEqual(streams[1]['id'], 4)
 
+    def test_purge_events(self):
+        self.db.purge_events([1])
+        events = self.db.find_events()
+        self.assertEqual(3, len(events))
+
+    def test_find_older_events(self):
+        d1 = datetime.datetime(2014, 8, 1, 2, 10, 12, 1)
+        d2 = datetime.datetime(2014, 8, 1, 4, 57, 55, 43)
+        event_ids = self.db.find_older_events(d1, 2)
+        self.assertEqual(event_ids, [3])
+        event_ids = self.db.find_older_events(d2, 2)
+        self.assertEqual(event_ids, [3, 4])
+        event_ids = self.db.find_older_events(d2, 1)
+        self.assertEqual(event_ids, [3])
+
     def test_find_events(self):
         events = self.db.find_events()
         self.assertEqual(4, len(events))
