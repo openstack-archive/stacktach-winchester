@@ -15,12 +15,17 @@
 # limitations under the License.
 
 import abc
+import collections
 import datetime
+import fnmatch
+import json
 import logging
 import six
+import time
 import uuid
 
 from notabene import kombu_driver as driver
+import requests
 
 
 logger = logging.getLogger(__name__)
@@ -358,33 +363,54 @@ class UsageHandler(PipelineHandlerBase):
         self._confirm_delete(exists, deleted, delete_fields)
 
     def _base_notification(self, exists):
-        apb, ape = self._get_audit_period(exists)
-        return {
-            'payload': {
-                'audit_period_beginning': str(apb),
-                'audit_period_ending': str(ape),
-                'launched_at': str(exists.get('launched_at', '')),
-                'deleted_at': str(exists.get('deleted_at', '')),
-                'instance_id': exists.get('instance_id', ''),
-                'tenant_id': exists.get('tenant_id', ''),
-                'display_name': exists.get('display_name', ''),
-                'instance_type': exists.get('instance_flavor', ''),
-                'instance_flavor_id': exists.get('instance_flavor_id', ''),
-                'state': exists.get('state', ''),
-                'state_description': exists.get('state_description', ''),
-                'bandwidth': {'public': {
-                    'bw_in': exists.get('bandwidth_in', 0),
-                    'bw_out': exists.get('bandwidth_out', 0)}},
-                'image_meta': {
-                    'org.openstack__1__architecture': exists.get(
-                        'os_architecture', ''),
-                    'org.openstack__1__os_version': exists.get('os_version',
-                                                               ''),
-                    'org.openstack__1__os_distro': exists.get('os_distro', ''),
-                    'org.rackspace__1__options': exists.get('rax_options', '0')
-                }
-            },
-            'original_message_id': exists.get('message_id', '')}
+        basen = exists.copy()
+        if 'bandwidth_in' not in basen:
+            basen['bandwidth_in'] = 0
+        if 'bandwidth_out' not in basen:
+            basen['bandwidth_out'] = 0
+        if 'rax_options' not in basen:
+            basen['rax_options'] = '0'
+        basen['original_message_id'] = exists.get('message_id', '')
+        return basen
+#       apb, ape = self._get_audit_period(exists)
+#       return {
+#           'payload': {
+#               'audit_period_beginning': str(apb),
+#               'audit_period_ending': str(ape),
+#               'launched_at': str(exists.get('launched_at', '')),
+#               'deleted_at': str(exists.get('deleted_at', '')),
+#               'instance_id': exists.get('instance_id', ''),
+#               'tenant_id': exists.get('tenant_id', ''),
+#               'display_name': exists.get('display_name', ''),
+#               'instance_type': exists.get('instance_flavor', ''),
+#               'instance_flavor_id': exists.get('instance_flavor_id', ''),
+#               'state': exists.get('state', ''),
+#               'state_description': exists.get('state_description', ''),
+#               'bandwidth': {'public': {
+#                   'bw_in': exists.get('bandwidth_in', 0),
+#                   'bw_out': exists.get('bandwidth_out', 0)}},
+#               'image_meta': {
+#                   'org.openstack__1__architecture': exists.get(
+#                       'os_architecture', ''),
+#                   'org.openstack__1__os_version': exists.get('os_version',
+#                                                              ''),
+#                   'org.openstack__1__os_distro': exists.get('os_distro', ''),
+#                   'org.rackspace__1__options': exists.get('rax_options', '0')
+#               }
+#           },
+#           'original_message_id': exists.get('message_id', '')}
+
+    def _generate_new_id(self, original_message_id, event_type):
+        # Generate message_id for new events deterministically from
+        # the original message_id and event type using uuid5 algo.
+        # This will allow any dups to be caught by message_id. (mdragon)
+        if original_message_id:
+            oid = uuid.UUID(original_message_id)
+            return uuid.uuid5(oid, event_type)
+        else:
+            logger.error("Generating %s, but origional message missing"
+                         " origional_message_id." % event_type)
+            return uuid.uuid4()
 
     def _process_block(self, block, exists):
         error = None
@@ -422,12 +448,13 @@ class UsageHandler(PipelineHandlerBase):
                                  datetime.datetime.utcnow()),
                              'stream_id': int(self.stream_id),
                              'instance_id': instance_id,
-                             'warnings': self.warnings}
+                             'warnings': ', '.join(self.warnings)}
             events.append(warning_event)
 
         new_event = self._base_notification(exists)
+        new_event['message_id'] = self._generate_new_id(
+            new_event['original_message_id'], event_type)
         new_event.update({'event_type': event_type,
-                          'message_id': str(uuid.uuid4()),
                           'publisher_id': 'stv3',
                           'timestamp': exists.get('timestamp',
                                                   datetime.datetime.utcnow()),
@@ -466,11 +493,299 @@ class UsageHandler(PipelineHandlerBase):
             }
             new_events.append(new_event)
 
-        env['usage_notifications'] = new_events
-        return events
+        return events + new_events
 
     def commit(self):
         pass
+
+    def rollback(self):
+        pass
+
+
+class AtomPubException(Exception):
+    pass
+
+
+cuf_template = ("""<event xmlns="http://docs.rackspace.com/core/event" """
+                """xmlns:nova="http://docs.rackspace.com/event/nova" """
+                """version="1" """
+                """id="%(message_id)s" resourceId="%(instance_id)s" """
+                """resourceName="%(display_name)s" """
+                """dataCenter="%(data_center)s" """
+                """region="%(region)s" tenantId="%(tenant_id)s" """
+                """startTime="%(start_time)s" endTime="%(end_time)s" """
+                """type="USAGE"><nova:product version="1" """
+                """serviceCode="CloudServersOpenStack" """
+                """resourceType="SERVER" """
+                """flavorId="%(instance_flavor_id)s" """
+                """flavorName="%(instance_flavor)s" """
+                """status="%(status)s" %(options)s """
+                """bandwidthIn="%(bandwidth_in)s" """
+                """bandwidthOut="%(bandwidth_out)s"/></event>""")
+
+
+class AtomPubHandler(PipelineHandlerBase):
+    auth_token_cache = None
+
+    def __init__(self, url, event_types=None, extra_info=None,
+                 auth_user='', auth_key='', auth_server='',
+                 wait_interval=30, max_wait=600, http_timeout=120, **kw):
+        super(AtomPubHandler, self).__init__(**kw)
+        self.events = []
+        self.included_types = []
+        self.excluded_types = []
+        self.url = url
+        self.auth_user = auth_user
+        self.auth_key = auth_key
+        self.auth_server = auth_server
+        self.wait_interval = wait_interval
+        self.max_wait = max_wait
+        self.http_timeout = http_timeout
+        if extra_info:
+            self.extra_info = extra_info
+        else:
+            self.extra_info = {}
+
+        if event_types:
+            if isinstance(event_types, six.string_types):
+                event_types = [event_types]
+            for t in event_types:
+                if t.startswith('!'):
+                    self.excluded_types.append(t[1:])
+                else:
+                    self.included_types.append(t)
+        else:
+            self.included_types.append('*')
+        if self.excluded_types and not self.included_types:
+            self.included_types.append('*')
+
+    def _included_type(self, event_type):
+        return any(fnmatch.fnmatch(event_type, t) for t in self.included_types)
+
+    def _excluded_type(self, event_type):
+        return any(fnmatch.fnmatch(event_type, t) for t in self.excluded_types)
+
+    def match_type(self, event_type):
+        return (self._included_type(event_type)
+                and not self._excluded_type(event_type))
+
+    def handle_events(self, events, env):
+        for event in events:
+            event_type = event['event_type']
+            if self.match_type(event_type):
+                self.events.append(event)
+        logger.debug("Matched %s events." % len(self.events))
+        return events
+
+    def commit(self):
+        for event in self.events:
+            event_type = event.get('event_type', '')
+            message_id = event.get('message_id', '')
+            try:
+                status = self.publish_event(event)
+                logger.debug("Sent %s event %s. Status %s" % (event_type,
+                                                              message_id,
+                                                              status))
+            except Exception:
+                original_message_id = event.get('original_message_id', '')
+                logger.exception("Error publishing %s event %s "
+                                 "(original id: %s)!" % (event_type,
+                                                         message_id,
+                                                         original_message_id))
+
+    def publish_event(self, event):
+        content, content_type = self.format_cuf_xml(event)
+        event_type = self.event_type_cuf_xml(event.get('event_type'))
+        atom = self.generate_atom(event, event_type, content, content_type)
+
+        logger.debug("Publishing event: %s" % atom)
+        return self._send_event(atom)
+
+    def generate_atom(self, event, event_type, content, content_type):
+        template = ("""<atom:entry xmlns:atom="http://www.w3.org/2005/Atom">"""
+                    """<atom:id>urn:uuid:%(message_id)s</atom:id>"""
+                    """<atom:category term="%(event_type)s" />"""
+                    """<atom:category """
+                    """term="original_message_id:%(original_message_id)s" />"""
+                    """<atom:title type="text">Server</atom:title>"""
+                    """<atom:content type="%(content_type)s">%(content)s"""
+                    """</atom:content></atom:entry>""")
+        info = dict(message_id=event.get('message_id'),
+                    original_message_id=event.get('original_message_id'),
+                    event=event,
+                    event_type=event_type,
+                    content=content,
+                    content_type=content_type)
+        return template % info
+
+    def event_type_cuf_xml(self, event_type):
+        return event_type + ".cuf"
+
+    def format_cuf_xml(self, event):
+        tvals = collections.defaultdict(lambda: '')
+        tvals.update(event)
+        tvals.update(self.extra_info)
+        start_time, end_time = self._get_times(event)
+        tvals['start_time'] = self._format_time(start_time)
+        tvals['end_time'] = self._format_time(end_time)
+        tvals['status'] = self._get_status(event)
+        tvals['options'] = self._get_options(event)
+        c = cuf_template % tvals
+        return (c, 'application/xml')
+
+    def _get_options(self, event):
+        opt = int(event.get('rax_options', 0))
+        flags = [bool(opt & (2**i)) for i in range(8)]
+        os = 'LINUX'
+        app = None
+        if flags[0]:
+            os = 'RHEL'
+        if flags[2]:
+            os = 'WINDOWS'
+        if flags[6]:
+            os = 'VYATTA'
+        if flags[3]:
+            app = 'MSSQL'
+        if flags[5]:
+            app = 'MSSQL_WEB'
+        if app is None:
+            return 'osLicenseType="%s"' % os
+        else:
+            return 'osLicenseType="%s" applicationLicense="%s"' % (os, app)
+
+    def _get_status(self, event):
+        state = event.get('state')
+        state_description = event.get('state_description')
+        status = 'UNKNOWN'
+        status_map = {
+            "building": 'BUILD',
+            "stopped": 'SHUTOFF',
+            "paused": 'PAUSED',
+            "suspended": 'SUSPENDED',
+            "rescued": 'RESCUE',
+            "error": 'ERROR',
+            "deleted": 'DELETED',
+            "soft-delete": 'SOFT_DELETED',
+            "shelved": 'SHELVED',
+            "shelved_offloaded": 'SHELVED_OFFLOADED',
+        }
+        if state in status_map:
+            status = status_map[state]
+        if state == 'resized':
+            if state_description == 'resize_reverting':
+                status = 'REVERT_RESIZE'
+            else:
+                status = 'VERIFY_RESIZE'
+        if state == 'active':
+            active_map = {
+                "rebooting": 'REBOOT',
+                "rebooting_hard": 'HARD_REBOOT',
+                "updating_password": 'PASSWORD',
+                "rebuilding": 'REBUILD',
+                "rebuild_block_device_mapping": 'REBUILD',
+                "rebuild_spawning": 'REBUILD',
+                "migrating": 'MIGRATING',
+                "resize_prep": 'RESIZE',
+                "resize_migrating": 'RESIZE',
+                "resize_migrated": 'RESIZE',
+                "resize_finish": 'RESIZE',
+            }
+            status = active_map.get(state_description, 'ACTIVE')
+        if status == 'UNKNOWN':
+            logger.error("Unknown status for event %s: state %s (%s)" % (
+                         event.get('message_id'), state, state_description))
+        return status
+
+    def _get_times(self, event):
+        audit_period_beginning = event.get('audit_period_beginning')
+        audit_period_ending = event.get('audit_period_ending')
+        launched_at = event.get('launched_at')
+        terminated_at = event.get('terminated_at')
+        if not terminated_at:
+            terminated_at = event.get('deleted_at')
+
+        start_time = max(launched_at, audit_period_beginning)
+        if not terminated_at:
+            end_time = audit_period_ending
+        else:
+            end_time = min(terminated_at, audit_period_ending)
+        if start_time > end_time:
+            start_time = audit_period_beginning
+        return (start_time, end_time)
+
+    def _format_time(self, dt):
+        time_format = "%Y-%m-%dT%H:%M:%SZ"
+        if dt:
+            return datetime.datetime.strftime(dt, time_format)
+        else:
+            return ''
+
+    def _get_auth(self, force=False, headers=None):
+        if headers is None:
+            headers = {}
+        if force or not AtomPubHandler.auth_token_cache:
+            auth_body = {"auth": {
+                         "RAX-KSKEY:apiKeyCredentials": {
+                             "username": self.auth_user,
+                             "apiKey": self.auth_key,
+                         }}}
+            auth_headers = {"User-Agent": "Winchester",
+                            "Accept": "application/json",
+                            "Content-Type": "application/json"}
+            logger.debug("Contacting  auth server %s" % self.auth_server)
+            res = requests.post(self.auth_server,
+                                data=json.dumps(auth_body),
+                                headers=auth_headers)
+            res.raise_for_status()
+            token = res.json()["access"]["token"]["id"]
+            logger.debug("Token received: %s" % token)
+            AtomPubHandler.auth_token_cache = token
+        headers["X-Auth-Token"] = AtomPubHandler.auth_token_cache
+        return headers
+
+    def _send_event(self, atom):
+        headers = {"Content-Type": "application/atom+xml"}
+        headers = self._get_auth(headers=headers)
+        attempts = 0
+        status = 0
+        while True:
+            try:
+                res = requests.post(self.url,
+                                    data=atom,
+                                    headers=headers,
+                                    timeout=self.http_timeout)
+                status = res.status_code
+                if status >= 200 and status < 300:
+                    break
+                if status == 401:
+                    logger.info("Auth expired, reauthorizing...")
+                    headers = self._get_auth(headers=headers, force=True)
+                    continue
+                if status == 409:
+                    # they already have this. No need to retry. (mdragon)
+                    logger.debug("Duplicate message: \n%s" % atom)
+                    break
+                if status == 400:
+                    # AtomPub server won't accept content.
+                    logger.error("Invalid Content: Server rejected content: "
+                                 "\n%s" % atom)
+                    break
+            except requests.exceptions.ConnectionError:
+                logger.exception("Connection error talking to %s" % self.url)
+            except requests.exceptions.Timeout:
+                logger.exception("HTTP timeout talking to %s" % self.url)
+            except requests.exceptions.HTTPError:
+                logger.exception("HTTP protocol error talking to "
+                                 "%s" % self.url)
+            except requests.exceptions.RequestException:
+                logger.exception("Unknown exeption talking to %s" % self.url)
+            # If we got here, something went wrong
+            attempts += 1
+            wait = min(attempts * self.wait_interval, self.max_wait)
+            logger.error("Message delivery failed, going to sleep, will "
+                         "try again in %s seconds" % str(wait))
+            time.sleep(wait)
+        return status
 
     def rollback(self):
         pass

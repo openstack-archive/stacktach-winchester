@@ -193,14 +193,18 @@ class TriggerManager(object):
         return self.time_sync.current_time()
 
     def save_event(self, event):
-        traits = event.copy()
+        traits = {}
         try:
-            message_id = traits.pop('message_id')
-            timestamp = traits.pop('timestamp')
-            event_type = traits.pop('event_type')
+            message_id = event['message_id']
+            timestamp = event['timestamp']
+            event_type = event['event_type']
         except KeyError as e:
             logger.warning("Received invalid event: %s" % e)
             return False
+        for key, val in event.items():
+            if key not in ('message_id', 'timestamp', 'event_type'):
+                if val is not None:
+                    traits[key] = val
         try:
             self.db.create_event(message_id, event_type,
                                  timestamp, traits)

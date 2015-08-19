@@ -143,7 +143,12 @@ class DBInterface(object):
         event_type = self.get_event_type(event_type, session=session)
         e = models.Event(message_id, event_type, generated)
         for name in traits:
-            e[name] = traits[name]
+            try:
+                e[name] = traits[name]
+            except models.InvalidTraitType:
+                logger.error("Invalid trait for %s "
+                             "(%s) %s" % (name, traits[name],
+                                          type(traits[name])))
         session.add(e)
 
     @sessioned

@@ -211,7 +211,7 @@ class TestUsageHandler(unittest.TestCase):
                              f['event_type'])
             self.assertEqual("now", f['timestamp'])
             self.assertEqual(123, f['stream_id'])
-            self.assertEqual("inst", f['payload']['instance_id'])
+            self.assertEqual("inst", f['instance_id'])
             self.assertEqual("None", f['error'])
             self.assertIsNone(f['error_code'])
 
@@ -228,7 +228,7 @@ class TestUsageHandler(unittest.TestCase):
                              f['event_type'])
             self.assertEqual("now", f['timestamp'])
             self.assertEqual(123, f['stream_id'])
-            self.assertEqual("inst", f['payload']['instance_id'])
+            self.assertEqual("inst", f['instance_id'])
             self.assertEqual("Error", f['error'])
             self.assertEqual("UX", f['error_code'])
 
@@ -301,11 +301,9 @@ class TestUsageHandler(unittest.TestCase):
         env = {'stream_id': 123}
         raw = [{'event_type': 'foo'}]
         events = self.handler.handle_events(raw, env)
-        self.assertEqual(1, len(events))
-        notifications = env['usage_notifications']
-        self.assertEqual(1, len(notifications))
+        self.assertEqual(2, len(events))
         self.assertEqual("compute.instance.exists.failed",
-                         notifications[0]['event_type'])
+                         events[-1]['event_type'])
 
     @mock.patch.object(pipeline_handler.UsageHandler, '_process_block')
     def test_handle_events_exists(self, pb):
@@ -325,9 +323,7 @@ class TestUsageHandler(unittest.TestCase):
             {'event_type': 'foo'},
         ]
         events = self.handler.handle_events(raw, env)
-        self.assertEqual(3, len(events))
-        notifications = env['usage_notifications']
-        self.assertEqual(1, len(notifications))
+        self.assertEqual(4, len(events))
         self.assertEqual("compute.instance.exists.failed",
-                         notifications[0]['event_type'])
+                         events[-1]['event_type'])
         self.assertTrue(pb.called)

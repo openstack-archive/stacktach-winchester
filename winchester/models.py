@@ -160,6 +160,7 @@ class PolymorphicVerticalProperty(object):
     ATTRIBUTE_MAP = {Datatype.none: None}
     PY_TYPE_MAP = {unicode: Datatype.string,
                    int: Datatype.int,
+                   long: Datatype.int,
                    float: Datatype.float,
                    datetime: Datatype.datetime,
                    DBTimeRange: Datatype.timerange}
