@@ -528,6 +528,7 @@ class AtomPubHandler(PipelineHandlerBase):
     auth_token_cache = None
 
     def __init__(self, url, event_types=None, extra_info=None,
+                 content_format='json', title=None, categories=None,
                  auth_user='', auth_key='', auth_server='',
                  wait_interval=30, max_wait=600, http_timeout=120, **kw):
         super(AtomPubHandler, self).__init__(**kw)
@@ -541,6 +542,9 @@ class AtomPubHandler(PipelineHandlerBase):
         self.wait_interval = wait_interval
         self.max_wait = max_wait
         self.http_timeout = http_timeout
+        self.content_format = content_format
+        self.title = title
+        self.categories = categories
         if extra_info:
             self.extra_info = extra_info
         else:
@@ -594,32 +598,62 @@ class AtomPubHandler(PipelineHandlerBase):
                                                          original_message_id))
 
     def publish_event(self, event):
-        content, content_type = self.format_cuf_xml(event)
-        event_type = self.event_type_cuf_xml(event.get('event_type'))
-        atom = self.generate_atom(event, event_type, content, content_type)
+        content, content_type = self.format(event)
+        event_type = self.get_event_type(event.get('event_type'))
+        atom = self.generate_atom(event, event_type, content, content_type,
+                                  title=self.title, categories=self.categories)
 
         logger.debug("Publishing event: %s" % atom)
         return self._send_event(atom)
 
-    def generate_atom(self, event, event_type, content, content_type):
+    def generate_atom(self, event, event_type, content, content_type,
+                      categories=None, title=None):
         template = ("""<atom:entry xmlns:atom="http://www.w3.org/2005/Atom">"""
                     """<atom:id>urn:uuid:%(message_id)s</atom:id>"""
-                    """<atom:category term="%(event_type)s" />"""
-                    """<atom:category """
-                    """term="original_message_id:%(original_message_id)s" />"""
-                    """<atom:title type="text">Server</atom:title>"""
+                    """%(categories)s"""
+                    """<atom:title type="text">%(title)s</atom:title>"""
                     """<atom:content type="%(content_type)s">%(content)s"""
                     """</atom:content></atom:entry>""")
+        if title is None:
+            title = event_type
+        if categories is None:
+            cats = []
+        else:
+            cats = categories[:]
+        cats.append(event_type)
+        original_message_id = event.get('original_message_id')
+        if original_message_id is not None:
+            cats.append('original_message_id:%s' % original_message_id)
+        cattags = ''.join("""<atom:category term="%s" />""" % cat
+                          for cat in cats)
         info = dict(message_id=event.get('message_id'),
-                    original_message_id=event.get('original_message_id'),
+                    original_message_id=original_message_id,
                     event=event,
                     event_type=event_type,
                     content=content,
+                    categories=cattags,
+                    title=title,
                     content_type=content_type)
         return template % info
 
+    def get_event_type(self, event_type):
+        etf = getattr(self, 'event_type_%s' % self.content_format, None)
+        if etf:
+            return etf(event_type)
+        return event_type
+
     def event_type_cuf_xml(self, event_type):
         return event_type + ".cuf"
+
+    def format(self, event):
+        eff = getattr(self, 'format_%s' % self.content_format, None)
+        if eff is None:
+            eff = getattr(self, 'format_json')
+        return eff(event)
+
+    def format_json(self, event):
+        c = json.dumps(event)
+        return (c, 'application/json')
 
     def format_cuf_xml(self, event):
         tvals = collections.defaultdict(lambda: '')

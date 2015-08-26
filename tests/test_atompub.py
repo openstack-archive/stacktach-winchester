@@ -124,7 +124,8 @@ class TestAtomPubHandler(unittest.TestCase):
         ctype = 'test/thing'
         content = 'TEST_CONTENT'
         h = pipeline_handler.AtomPubHandler('fakeurl')
-        atom = h.generate_atom(event, event_type, content, ctype)
+        atom = h.generate_atom(event, event_type, content, ctype,
+                               title='Server')
         self.assertEqual(atom, expected)
 
     @mock.patch.object(pipeline_handler.requests, 'post')
