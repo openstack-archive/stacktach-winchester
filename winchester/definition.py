@@ -212,10 +212,9 @@ class TriggerDefinition(object):
             raise DefinitionError("At least one of: 'fire_pipeline' or "
                                   "'expire_pipeline' must be specified in a "
                                   "trigger definition.")
-        if 'fire_criteria' not in config:
-            raise DefinitionError("Required criteria in trigger definition "
-                                  "not specified 'fire_criteria'")
-        self.fire_criteria = [Criteria(c) for c in config['fire_criteria']]
+        self.fire_criteria = []
+        if 'fire_criteria' in config:
+            self.fire_criteria = [Criteria(c) for c in config['fire_criteria']]
         if 'match_criteria' not in config:
             raise DefinitionError("Required criteria in trigger definition "
                                   "not specified 'match_criteria'")
@@ -272,6 +271,8 @@ class TriggerDefinition(object):
 
     def should_fire(self, events):
         group = self.debugger.get_group("Fire")
+        if not self.fire_criteria:
+            return group.mismatch("No fire criteria")
         for criteria in self.fire_criteria:
             matches = 0
             for event in events:
